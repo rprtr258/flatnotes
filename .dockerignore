@@ -1,0 +1,14 @@
+# Ignore everything
+**
+
+# Include the following
+!package.json
+!package-lock.json
+!flatnotes/**
+!.htmlnanorc
+
+# go
+!go.mod
+!go.sum
+!cmd/
+!internal/
