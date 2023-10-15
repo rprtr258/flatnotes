@@ -1,0 +1,65 @@
+// Bootstrap
+@import "bootstrap/dist/css/bootstrap.css";
+@import "bootstrap-vue/dist/bootstrap-vue.css";
+@import "node_modules/bootstrap/scss/functions";
+@import "node_modules/bootstrap/scss/variables";
+@import "node_modules/bootstrap/scss/mixins";
+
+// Google Font
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@100&display=swap");
+
+// Colours
+@import "./colours";
+
+// Elements & Classes
+body {
+  background-color: var(--colour-background);
+  color: var(--colour-text);
+  font-family: "Inter", sans-serif;
+}
+
+a {
+  color: inherit;
+  &:hover {
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+  }
+}
+
+.form-control:focus {
+  box-shadow: none;
+  border-color: var(--colour-border);
+}
+
+.bttn {
+  border: 0;
+  background-color: var(--colour-background);
+  border-radius: 4px;
+  padding: 4px 10px;
+  color: var(--colour-text-muted);
+
+  svg {
+    margin-right: 2px;
+  }
+
+  &:hover {
+    background-color: var(--colour-background-tint);
+    cursor: pointer;
+    color: inherit;
+  }
+}
+.dark-theme .bttn:hover {
+  background-color: var(--colour-background-elevated);
+}
+
+.modal-content {
+  background-color: var(--colour-background);
+  color: var(--colour-text);
+}
+
+.modal-content {
+  .modal-header, .modal-body, .modal-footer {
+    border: 0;
+  }
+}

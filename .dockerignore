@@ -1,0 +1,12 @@
+# Ignore everything
+**
+
+# Include the following
+!LICENSE
+!go.mod
+!go.sum
+!package.json
+!package-lock.json
+!flatnotes/**
+!entrypoint.sh
+!.htmlnanorc
