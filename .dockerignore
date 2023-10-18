@@ -2,6 +2,7 @@
 **
 
 # Include the following
+<<<<<<< HEAD
 !package.json
 !package-lock.json
 !flatnotes/**
@@ -12,3 +13,13 @@
 !go.sum
 !cmd/
 !internal/
+=======
+!LICENSE
+!go.mod
+!go.sum
+!package.json
+!package-lock.json
+!flatnotes/**
+!entrypoint.sh
+!.htmlnanorc
+>>>>>>> 6f5c233 ([master] init)
