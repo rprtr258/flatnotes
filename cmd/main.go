@@ -70,7 +70,8 @@ func run(ctx context.Context) error {
 			token, ok := strings.CutPrefix(c.GetReqHeaders()["Authorization"], "Bearer ")
 			if !ok {
 				return fiber.NewError(fiber.StatusUnauthorized, "invalid token in Authorization header")
-			} else if err := internal.Validate_token(config, token); err != nil {
+			}
+			if err := internal.ValidateToken(config, token); err != nil {
 				return fiber.NewError(fiber.StatusUnauthorized, fmt.Errorf("validate token: %w", err).Error())
 			}
 			return c.Next()
@@ -109,7 +110,7 @@ func run(ctx context.Context) error {
 					return fiber.NewError(fiber.StatusBadRequest, "Incorrect login credentials.")
 				}
 
-				access_token, err := internal.Create_access_token(config, config.Username)
+				access_token, err := internal.CreateAccessToken(config, config.Username)
 				if err != nil {
 					return fiber.NewError(fiber.StatusUnauthorized, fmt.Sprintf("create access token: %s", err.Error()))
 				}

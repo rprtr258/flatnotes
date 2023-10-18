@@ -20,7 +20,7 @@ type claims struct {
 	jwt.RegisteredClaims
 }
 
-func Create_access_token(config Config, username string) (string, error) {
+func CreateAccessToken(config Config, username string) (string, error) {
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   username,
@@ -29,7 +29,7 @@ func Create_access_token(config Config, username string) (string, error) {
 	}).SignedString([]byte(config.SessionKey)) //(to_encode, config.session_key, JWT_ALGORITHM)
 }
 
-func Validate_token(config Config, token string /*= Depends(oauth2_scheme)*/) error {
+func ValidateToken(config Config, token string /*= Depends(oauth2_scheme)*/) error {
 	// try:
 	var claims claims
 	_, err := jwt.ParseWithClaims(token, &claims, func(t *jwt.Token) (any, error) {
