@@ -16,17 +16,6 @@ import (
 	"github.com/samber/lo"
 )
 
-// func JSONResponse(x any) string {
-// 	b, _ := json.Marshal(x)
-// 	return string(b)
-// }
-
-// var (
-// 	title_exists_response   = fiber.NewError(409, JSONResponse(map[string]string{"message": "The specified title already exists."}))
-// 	invalid_title_response  = fiber.NewError(400, JSONResponse(map[string]string{"message": "The specified title contains invalid characters."}))
-// 	note_not_found_response = fiber.NewError(404, JSONResponse(map[string]string{"message": "The specified note cannot be found."}))
-// )
-
 func setupApp(app *fiber.App, config internal.Config, flatnotes internal.Flatnotes) {
 	// totp = (
 	//     pyotp.TOTP(config.totp_key) if config.auth_type == AuthType.TOTP else None

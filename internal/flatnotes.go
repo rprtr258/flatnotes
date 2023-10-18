@@ -13,15 +13,11 @@ import (
 	"github.com/samber/lo"
 )
 
-type IndexSchema struct {
-	// filename = ID(unique=True, stored=True)
-	// last_modified = DATETIME(stored=True, sortable=True)
-	// title = TEXT(
-	//     field_boost=2.0, analyzer=StemmingFoldingAnalyzer, sortable=True
-	// )
-	// content = TEXT(analyzer=StemmingFoldingAnalyzer)
-	// tags = KEYWORD(lowercase=True, field_boost=2.0)
-}
+var (
+	ErrTitleExists  = fmt.Errorf("The specified title already exists.")
+	ErrTitleInvalid = fmt.Errorf("The specified title contains invalid characters.")
+	ErrNotFound     = fmt.Errorf("The specified note cannot be found.")
+)
 
 type SearchResult struct {
 	Note
