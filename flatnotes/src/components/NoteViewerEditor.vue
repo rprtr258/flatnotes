@@ -13,7 +13,6 @@ import codeSyntaxHighlight from "@toast-ui/editor-plugin-code-syntax-highlight/d
 const customHTMLRenderer = {
   heading(node, { entering, getChildrenText }) {
     const tagName = `h${node.level}`;
-
     if (entering) {
       return {
         type: "openTag",
@@ -251,6 +250,7 @@ export default {
         });
         return;
       }
+
       const reservedCharacters = /[<>:"/\\|?*]/;
       if (reservedCharacters.test(this.titleInput)) {
         this.$bvToast.toast(
@@ -264,8 +264,7 @@ export default {
         return;
       }
 
-      // New Note
-      if (this.currentNote.lastModified == null) {
+      if (this.currentNote.lastModified == null) { // New Note
         api
           .post(`/api/notes`, {
             title: this.titleInput,
@@ -284,13 +283,7 @@ export default {
               EventBus.$emit("unhandledServerError");
             }
           });
-      }
-
-      // Modified Note
-      else if (
-        newContent != this.currentNote.content ||
-        this.titleInput != this.currentNote.title
-      ) {
+      } else if (newContent != this.currentNote.content || this.titleInput != this.currentNote.title) { // Modified Note
         api
           .patch(`/api/notes/${encodeURIComponent(this.currentNote.title)}`, {
             newTitle: this.titleInput,
@@ -309,10 +302,7 @@ export default {
               EventBus.$emit("unhandledServerError");
             }
           });
-      }
-
-      // No Change
-      else {
+      } else { // No Change
         localStorage.removeItem(this.currentNote.title);
         this.setEditMode(false);
         this.noteSavedToast();

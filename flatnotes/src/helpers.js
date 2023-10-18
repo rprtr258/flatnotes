@@ -1,11 +1,7 @@
 export function getSearchParam(paramName, defaultValue = null) {
   let urlSearchParams = new URLSearchParams(window.location.search);
   let paramValue = urlSearchParams.get(paramName);
-  if (paramValue != null) {
-    return paramValue;
-  } else {
-    return defaultValue;
-  }
+  return (paramValue != null) ? paramValue : defaultValue;
 }
 
 export function getSearchParamBool(paramName, defaultValue = null) {
@@ -14,12 +10,13 @@ export function getSearchParamBool(paramName, defaultValue = null) {
     return defaultValue
   }
   let paramValueLowerCase = paramValue.toLowerCase();
-  if (paramValueLowerCase == "true") {
-    return true;
-  } else if (paramValueLowerCase == "false") {
-    return false;
-  } else {
-    return defaultValue;
+  switch (paramValueLowerCase ) {
+    case "true":
+      return true
+    case "false":
+      return false
+    default:
+      return defaultValue;
   }
 }
 
@@ -28,12 +25,9 @@ export function getSearchParamInt(paramName, defaultValue = null) {
   if (paramValue == null) {
     return defaultValue
   }
+
   let paramValueInt = parseInt(paramValue);
-  if (!isNaN(paramValueInt)) {
-    return paramValueInt;
-  } else {
-    return defaultValue;
-  }
+  return !isNaN(paramValueInt) ? paramValueInt : defaultValue;
 }
 
 export function setSearchParam(paramName, value) {

@@ -42,8 +42,7 @@ export default {
               parent.notes.push(new SearchResult(searchResult));
             });
           } else {
-            parent.loadingFailedMessage =
-              "Click the 'New' button at the top of the page to add your first note";
+            parent.loadingFailedMessage = "Click the 'New' button at the top of the page to add your first note";
             parent.loadingFailedIcon = "pencil";
             parent.loadingFailed = true;
           }
@@ -91,9 +90,7 @@ export default {
         class="bttn"
         :href="note.href"
         @click.prevent="openNote(note.href, $event)"
-      >
-        {{ note.title }}
-      </a>
+      >{{ note.title }}</a>
     </div>
   </div>
 </template>

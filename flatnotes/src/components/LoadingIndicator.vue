@@ -1,10 +1,10 @@
 <script>
 export default {
   props: {
-    showLoader: { type: Boolean, default: true },
-    failed: { type: Boolean },
-    failedBootstrapIcon: { type: String },
-    failedMessage: { type: String, default: "Loading Failed" },
+    showLoader:          { type: Boolean, default: true             },
+    failed:              { type: Boolean                            },
+    failedBootstrapIcon: { type: String                             },
+    failedMessage:       { type: String,  default: "Loading Failed" },
   },
 };
 </script>

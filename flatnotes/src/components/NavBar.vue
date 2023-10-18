@@ -10,11 +10,8 @@ export default {
   },
 
   props: {
-    showLogo: {
-      type: Boolean,
-      default: true,
-    },
-    authType: { type: String, default: null },
+    showLogo:  { type: Boolean, default: true  },
+    authType:  { type: String,  default: null  },
     darkTheme: { type: Boolean, default: false },
   },
 
@@ -28,18 +25,14 @@ export default {
     },
 
     showLogOutButton: function () {
-      return (
-        this.authType != null &&
-        ![constants.authTypes.none, constants.authTypes.readOnly].includes(
-          this.authType
-        )
-      );
+      return this.authType != null && ![
+        constants.authTypes.none,
+        constants.authTypes.readOnly,
+      ].includes(this.authType);
     },
 
     showNewButton: function () {
-      return (
-        this.authType != null && this.authType != constants.authTypes.readOnly
-      );
+      return this.authType != null && this.authType != constants.authTypes.readOnly;
     },
   },
 

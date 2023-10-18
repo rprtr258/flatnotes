@@ -43,10 +43,7 @@ export default {
       api
         .post("/api/token", {
           username: this.usernameInput,
-          password:
-            this.authType == constants.authTypes.totp
-              ? this.passwordInput + this.totpInput
-              : this.passwordInput,
+          password: this.passwordInput + (this.authType == constants.authTypes.totp ? this.totpInput : ""),
         })
         .then(function (response) {
           sessionStorage.setItem("token", response.data.access_token);
@@ -59,10 +56,7 @@ export default {
         .catch(function (error) {
           if (error.handled) {
             return;
-          } else if (
-            typeof error.response !== "undefined" &&
-            [400, 422].includes(error.response.status)
-          ) {
+          } else if (typeof error.response !== "undefined" && [400, 422].includes(error.response.status)) {
             parent.$bvToast.toast("Incorrect login credentials ✘", {
               variant: "danger",
               noCloseButton: true,

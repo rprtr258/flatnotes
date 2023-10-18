@@ -30,7 +30,6 @@ export default {
   data: function () {
     return {
       authType: null,
-
       views: {
         login: 0,
         home: 1,
@@ -38,7 +37,6 @@ export default {
         search: 3,
       },
       currentView: 1,
-
       noteTitle: null,
       searchTerm: null,
       darkTheme: false,
@@ -73,40 +71,25 @@ export default {
     route: function () {
       let path = window.location.pathname.split("/");
       let basePath = `/${path[1]}`;
-
       this.$bvModal.hide("search-modal");
-
-      // Home Page
       if (basePath == constants.basePaths.home) {
         this.updateDocumentTitle();
         this.currentView = this.views.home;
         this.$nextTick(function () {
           this.focusSearchInput();
         });
-      }
-
-      // Search
-      else if (basePath == constants.basePaths.search) {
+      } else if (basePath == constants.basePaths.search) {
         this.updateDocumentTitle("Search");
         this.searchTerm = helpers.getSearchParam(constants.params.searchTerm);
         this.currentView = this.views.search;
-      }
-
-      // New Note
-      else if (basePath == constants.basePaths.new) {
+      } else if (basePath == constants.basePaths.new) {
         this.updateDocumentTitle("New Note");
         this.currentView = this.views.note;
-      }
-
-      // Note
-      else if (basePath == constants.basePaths.note) {
+      } else if (basePath == constants.basePaths.note) {
         this.noteTitle = decodeURIComponent(path[2]);
         this.updateDocumentTitle(this.noteTitle);
         this.currentView = this.views.note;
-      }
-
-      // Login
-      else if (basePath == constants.basePaths.login) {
+      } else if (basePath == constants.basePaths.login) {
         this.updateDocumentTitle("Log In");
         this.currentView = this.views.login;
       }
@@ -215,9 +198,7 @@ export default {
 
   mounted: function () {
     let parent = this;
-
     window.addEventListener("popstate", this.route);
-
     this.$root.$on("bv::modal::shown", function (_, modalId) {
       if (modalId == "search-modal") {
         parent.focusSearchInput();

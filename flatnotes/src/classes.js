@@ -34,15 +34,9 @@ class SearchResult extends Note {
   }
 
   get includesHighlights() {
-    if (
-      this.titleHighlights ||
-      this.contentHighlights ||
-      (this.tagMatches != null && this.tagMatches.length)
-    ) {
-      return true;
-    } else {
-      return false;
-    }
+    return this.titleHighlights ||
+           this.contentHighlights ||
+           this.tagMatches != null && this.tagMatches.length;
   }
 }
 

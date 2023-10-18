@@ -23,10 +23,7 @@ api.interceptors.response.use(
     return response;
   },
   function(error) {
-    if (
-      typeof error.response !== "undefined" &&
-      error.response.status === 401
-    ) {
+    if (typeof error.response !== "undefined" && error.response.status === 401) {
       EventBus.$emit(
         "navigate",
         `${constants.basePaths.login}?${constants.params.redirect}=${encodeURI(

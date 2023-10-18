@@ -36,12 +36,12 @@ export default {
     },
 
     resultsGrouped: function () {
-      if (this.sortBy == this.sortOptions.title) {
+      switch (this.sortBy) {
+      case this.sortOptions.title:
         return this.resultsByTitle();
-      } else if (this.sortBy == this.sortOptions.lastModified) {
+      case this.sortOptions.lastModified:
         return this.resultsByLastModified();
-      } else {
-        // Default
+      default:
         return this.resultsByScore();
       }
     },
@@ -184,12 +184,10 @@ export default {
 
     init: function () {
       this.sortBy = helpers.getSearchParamInt(constants.params.sortBy, 0);
-
       this.showHighlights = helpers.getSearchParamBool(
         constants.params.showHighlights,
         true
       );
-
       this.getSearchResults();
     },
   },
