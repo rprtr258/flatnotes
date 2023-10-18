@@ -62,6 +62,16 @@ func run(ctx context.Context) error {
 	// )
 	last_used_totp := ""
 
+	// Display TOTP QR code
+	// if config.auth_type == internal.AuthTypeTOTP{
+	//     uri = totp.provisioning_uri(issuer_name="flatnotes", name=config.username)
+	//     qr := QRCode()
+	//     qr.add_data(uri)
+	//     log.Println( "Scan this QR code with your TOTP app of choice e.g. Authy or Google Authenticator:",)
+	//     qr.print_ascii()
+	//     log.Printf("Or manually enter this key: %s\n",totp.secret)
+	// }
+
 	authenticate := func(c *fiber.Ctx) error {
 		return c.Next()
 	}
@@ -78,53 +88,6 @@ func run(ctx context.Context) error {
 		}
 	}
 
-	// Display TOTP QR code
-	// if config.auth_type == internal.AuthTypeTOTP{
-	//     uri = totp.provisioning_uri(issuer_name="flatnotes", name=config.username)
-	//     qr := QRCode()
-	//     qr.add_data(uri)
-	//     log.Println( "Scan this QR code with your TOTP app of choice e.g. Authy or Google Authenticator:",)
-	//     qr.print_ascii()
-	//     log.Printf("Or manually enter this key: %s\n",totp.secret)
-	// }
-
-	if config.AuthType != internal.AuthTypeNone && config.AuthType != internal.AuthTypeReadOnly {
-		app.Post("/api/token",
-			func(c *fiber.Ctx) error {
-				var data internal.LoginModel
-				_ = c.BodyParser(&data)
-
-				username_correct := config.Username == data.Username
-
-				expected_password := config.Password
-				var current_totp string
-				if config.AuthType == internal.AuthTypeTOTP {
-					current_totp = "" // totp.now()
-					// expected_password += current_totp
-				}
-				password_correct := expected_password == data.Password
-
-				if !username_correct || !password_correct ||
-					// Prevent TOTP from being reused
-					config.AuthType == internal.AuthTypeTOTP && last_used_totp != "" && current_totp == last_used_totp {
-					return fiber.NewError(fiber.StatusBadRequest, "Incorrect login credentials.")
-				}
-
-				access_token, err := internal.CreateAccessToken(config, config.Username)
-				if err != nil {
-					return fiber.NewError(fiber.StatusUnauthorized, fmt.Sprintf("create access token: %s", err.Error()))
-				}
-
-				if config.AuthType == internal.AuthTypeTOTP {
-					last_used_totp = current_totp
-				}
-				return c.JSON(internal.TokenModel{
-					AccessToken: access_token,
-					TokenType:   "bearer",
-				})
-			})
-	}
-
 	root := func(c *fiber.Ctx) error {
 		html, err := os.ReadFile("flatnotes/dist/index.html")
 		if err != nil {
@@ -139,34 +102,6 @@ func run(ctx context.Context) error {
 	app.Get("/search", root)
 	app.Get("/new", root)
 	app.Get("/note/:title", root)
-
-	if config.AuthType != internal.AuthTypeReadOnly {
-		// Create a new note.
-		app.Post("/api/notes", authenticate, func(c *fiber.Ctx) error {
-			var data internal.NotePostModel
-			if err := c.BodyParser(&data); err != nil {
-				return fiber.NewError(fiber.StatusBadRequest, err.Error())
-			}
-
-			//         try:
-			note, err := internal.NewNote(config.DataPath, data.Title, true)
-			if err != nil {
-				return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("new note: %w", err).Error())
-			}
-
-			if err := note.SetContent([]byte(data.Content)); err != nil {
-				return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("set note content: %w", err).Error())
-			}
-
-			return c.JSON(internal.NoteContentResponseModel{
-				Content: &data.Content,
-			})
-			//         except InvalidTitleError:
-			//             return invalid_title_response
-			//         except FileExistsError:
-			//             return title_exists_response
-		})
-	}
 
 	// Get a specific note.
 	app.Get("/api/notes/:title", authenticate, func(c *fiber.Ctx) error {
@@ -213,6 +148,69 @@ func run(ctx context.Context) error {
 	})
 
 	if config.AuthType != internal.AuthTypeReadOnly {
+		if config.AuthType != internal.AuthTypeNone {
+			app.Post("/api/token",
+				func(c *fiber.Ctx) error {
+					var data internal.LoginModel
+					_ = c.BodyParser(&data)
+
+					username_correct := config.Username == data.Username
+
+					expected_password := config.Password
+					var current_totp string
+					if config.AuthType == internal.AuthTypeTOTP {
+						current_totp = "" // totp.now()
+						// expected_password += current_totp
+					}
+					password_correct := expected_password == data.Password
+
+					if !username_correct || !password_correct ||
+						// Prevent TOTP from being reused
+						config.AuthType == internal.AuthTypeTOTP && last_used_totp != "" && current_totp == last_used_totp {
+						return fiber.NewError(fiber.StatusBadRequest, "Incorrect login credentials.")
+					}
+
+					access_token, err := internal.CreateAccessToken(config, config.Username)
+					if err != nil {
+						return fiber.NewError(fiber.StatusUnauthorized, fmt.Sprintf("create access token: %s", err.Error()))
+					}
+
+					if config.AuthType == internal.AuthTypeTOTP {
+						last_used_totp = current_totp
+					}
+					return c.JSON(internal.TokenModel{
+						AccessToken: access_token,
+						TokenType:   "bearer",
+					})
+				})
+		}
+
+		// Create a new note.
+		app.Post("/api/notes", authenticate, func(c *fiber.Ctx) error {
+			var data internal.NotePostModel
+			if err := c.BodyParser(&data); err != nil {
+				return fiber.NewError(fiber.StatusBadRequest, err.Error())
+			}
+
+			//         try:
+			note, err := internal.NewNote(config.DataPath, data.Title, true)
+			if err != nil {
+				return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("new note: %w", err).Error())
+			}
+
+			if err := note.SetContent([]byte(data.Content)); err != nil {
+				return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("set note content: %w", err).Error())
+			}
+
+			return c.JSON(internal.NoteContentResponseModel{
+				Content: &data.Content,
+			})
+			//         except InvalidTitleError:
+			//             return invalid_title_response
+			//         except FileExistsError:
+			//             return title_exists_response
+		})
+
 		app.Patch("/api/notes/:title", authenticate, func(c *fiber.Ctx) error {
 			title, err := url.QueryUnescape(c.Params("title"))
 			if err != nil {
@@ -260,9 +258,7 @@ func run(ctx context.Context) error {
 			// except FileNotFoundError:
 			//     return note_not_found_response
 		})
-	}
 
-	if config.AuthType != internal.AuthTypeReadOnly {
 		app.Delete("/api/notes/:title", authenticate, func(c *fiber.Ctx) error {
 			title, err := url.QueryUnescape(c.Params("title"))
 			if err != nil {
