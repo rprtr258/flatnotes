@@ -27,36 +27,7 @@ import (
 // 	note_not_found_response = fiber.NewError(404, JSONResponse(map[string]string{"message": "The specified note cannot be found."}))
 // )
 
-func run(ctx context.Context) error {
-	config := internal.NewConfig()
-	app := fiber.New(fiber.Config{
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			switch e := err.(type) {
-			case *fiber.Error:
-				if e.Code == fiber.StatusNotFound {
-					return c.Redirect("/")
-				}
-
-				return err
-			default:
-				return err
-			}
-		},
-	})
-	app.Use(logger.New())
-	// app.Use(swagger.New(swagger.Config{
-	// 	BasePath: "/",
-	// 	FilePath: "./swagger.json", // FUCK YOU I DONT WANT TO WRITE COMMENTS AND GENERATE SHIT
-	// 	Path:     "docs",
-	// 	Title:    "Fiber API documentation",
-	// }))
-
-	flatnotes, err := internal.NewFlatnotes(config.DataPath)
-	if err != nil {
-		return fmt.Errorf("NewFlatnotes: %w", err)
-	}
-	// defer flatnotes.index.Close()
-
+func setupApp(app *fiber.App, config internal.Config, flatnotes internal.Flatnotes) {
 	// totp = (
 	//     pyotp.TOTP(config.totp_key) if config.auth_type == AuthType.TOTP else None
 	// )
@@ -337,6 +308,39 @@ func run(ctx context.Context) error {
 	})
 
 	app.Static("/", "./flatnotes/dist")
+}
+
+func run(ctx context.Context) error {
+	config := internal.NewConfig()
+	app := fiber.New(fiber.Config{
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			switch e := err.(type) {
+			case *fiber.Error:
+				if e.Code == fiber.StatusNotFound {
+					return c.Redirect("/")
+				}
+
+				return err
+			default:
+				return err
+			}
+		},
+	})
+	app.Use(logger.New())
+	// app.Use(swagger.New(swagger.Config{
+	// 	BasePath: "/",
+	// 	FilePath: "./swagger.json", // FUCK YOU I DONT WANT TO WRITE COMMENTS AND GENERATE SHIT
+	// 	Path:     "docs",
+	// 	Title:    "Fiber API documentation",
+	// }))
+
+	flatnotes, err := internal.NewFlatnotes(config.DataPath)
+	if err != nil {
+		return fmt.Errorf("NewFlatnotes: %w", err)
+	}
+	// defer flatnotes.index.Close()
+
+	setupApp(app, config, flatnotes)
 
 	go func() {
 		<-ctx.Done()

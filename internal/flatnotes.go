@@ -108,14 +108,14 @@ type Flatnotes struct {
 	index *fts.Index[NoteDocument]
 }
 
-func NewFlatnotes(dir string) (*Flatnotes, error) {
+func NewFlatnotes(dir string) (Flatnotes, error) {
 	if stat, err := os.Stat(dir); os.IsNotExist(err) {
-		return nil, fmt.Errorf("not a directory: %q does not exist", dir)
+		return Flatnotes{}, fmt.Errorf("not a directory: %q does not exist", dir)
 	} else if !stat.IsDir() {
-		return nil, fmt.Errorf("not a directory: %q is not a directory", dir)
+		return Flatnotes{}, fmt.Errorf("not a directory: %q is not a directory", dir)
 	}
 
-	self := &Flatnotes{
+	self := Flatnotes{
 		dir: dir,
 	}
 
@@ -123,7 +123,7 @@ func NewFlatnotes(dir string) (*Flatnotes, error) {
 	self.index = fts.NewIndex[NoteDocument]()
 
 	if err := self.update_index(); err != nil {
-		return nil, fmt.Errorf("update index: %w", err)
+		return Flatnotes{}, fmt.Errorf("update index: %w", err)
 	}
 
 	return self, nil
