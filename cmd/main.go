@@ -52,9 +52,11 @@ func setupApp(app *fiber.App, config internal.Config, flatnotes internal.Flatnot
 			if !ok {
 				return fiber.NewError(fiber.StatusUnauthorized, "invalid token in Authorization header")
 			}
+
 			if err := internal.ValidateToken(config, token); err != nil {
 				return fiber.NewError(fiber.StatusUnauthorized, fmt.Errorf("validate token: %w", err).Error())
 			}
+
 			return c.Next()
 		}
 	}
@@ -173,7 +175,16 @@ func setupApp(app *fiber.App, config internal.Config, flatnotes internal.Flatnot
 				return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("set note content: %w", err).Error())
 			}
 
+			lastModified, err := note.LastModified()
+			if err != nil {
+				return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("get last modified time: %w", err).Error())
+			}
+
 			return c.JSON(internal.NoteContentResponseModel{
+				NoteResponseModel: internal.NoteResponseModel{
+					Title:        note.Title,
+					LastModified: lastModified.Unix(),
+				},
 				Content: &data.Content,
 			})
 			//         except InvalidTitleError:
