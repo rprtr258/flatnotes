@@ -56,3 +56,31 @@ func ValidateToken(config Config, token string /*= Depends(oauth2_scheme)*/) err
 	//         headers={"WWW-Authenticate": "Bearer"},
 	//     )
 }
+
+func Authenticate(config Config, data LoginModel, last_used_totp *string) (TokenModel, error) {
+	expected_password := config.Password
+	var current_totp string
+	if config.AuthType == AuthTypeTOTP {
+		current_totp = "" // totp.now()
+		// expected_password += current_totp
+	}
+
+	if config.Username != data.Username || expected_password != data.Password ||
+		// Prevent TOTP from being reused
+		config.AuthType == AuthTypeTOTP && *last_used_totp != "" && current_totp == *last_used_totp {
+		return TokenModel{}, fmt.Errorf("Incorrect login credentials.")
+	}
+
+	access_token, err := CreateAccessToken(config, config.Username)
+	if err != nil {
+		return TokenModel{}, fmt.Errorf("create access token: %s", err.Error())
+	}
+
+	if config.AuthType == AuthTypeTOTP {
+		*last_used_totp = current_totp
+	}
+	return TokenModel{
+		AccessToken: access_token,
+		TokenType:   "bearer",
+	}, nil
+}

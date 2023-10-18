@@ -9,8 +9,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/rprtr258/flatnotes/internal/fts"
 	"github.com/samber/lo"
+
+	"github.com/rprtr258/flatnotes/internal/fts"
 )
 
 var (
@@ -19,20 +20,92 @@ var (
 	ErrNotFound     = fmt.Errorf("The specified note cannot be found.")
 )
 
+var (
+	_reTags       = regexp.MustCompile(`(?:^#|\s#)(\w+)(?:\s|$)`)
+	_reCodeblocks = regexp.MustCompile("`{1,3}.*?`{1,3}" /*, re.DOTALL*/)
+)
+
+// Return False if the declared title contains any of the following
+// characters: <>:"/\|?*
+func isValidTitle(title string) bool {
+	const _invalidChars = ` <>:"/\|?*` + "\n\r\t"
+	return !strings.ContainsAny(title, _invalidChars)
+}
+
+// Similar to re.sub but returns a tuple of:
+//
+// - `string` with matches removed
+// - list of matches
+func reExtract(re *regexp.Regexp, string string) (string, []string) {
+	text := re.ReplaceAllLiteralString(string, "")
+	matches := re.FindStringSubmatch(string)
+	return text, matches
+}
+
+// Strip tags from the given content and return a tuple consisting of:
+//
+// - The content without the tags.
+// - A set of tags converted to lowercase.
+func extractTags(content string) (string, Set[string]) {
+	contentExCodeblock := _reCodeblocks.ReplaceAllLiteralString(content, "")
+	_, tags := reExtract(_reTags, contentExCodeblock)
+	contentExTags, _ := reExtract(_reTags, content)
+	// try {
+	tagsSet := Set[string]{}
+	for _, tag := range tags {
+		tagsSet[strings.ToLower(tag)] = struct{}{}
+	}
+	return contentExTags, tagsSet
+	// } except IndexError{
+	// return content, set()
+	// }
+}
+
+func stripExt(filename string) string {
+	_, fname := filepath.Split(filename)
+	name, _ := strings.CutSuffix(fname, _markdownExt)
+	return name
+}
+
+type App struct {
+	dir   string
+	index *fts.Index[NoteDocument]
+}
+
+func New(dir string) (App, error) {
+	if stat, err := os.Stat(dir); os.IsNotExist(err) {
+		return App{}, fmt.Errorf("not a directory: %q does not exist", dir)
+	} else if !stat.IsDir() {
+		return App{}, fmt.Errorf("not a directory: %q is not a directory", dir)
+	}
+
+	res := App{
+		dir:   dir,
+		index: fts.NewIndex[NoteDocument](),
+	}
+
+	// for now loaded from fs on startup
+	if err := res.updateIndex(); err != nil {
+		return App{}, fmt.Errorf("update index: %w", err)
+	}
+
+	return res, nil
+}
+
 type SearchResult struct {
 	Note
 	Score                                          float64
 	TitleHighlights, ContentHighlights, TagMatches string
 }
 
-func NewSearchResult(notesDir string, hit fts.Hit[NoteDocument]) (SearchResult, error) {
-	note, err := NewNote(notesDir, hit.Doc.ID(), false)
+func (app *App) newSearchResult(hit fts.Hit[NoteDocument]) (SearchResult, error) {
+	note, err := app.getNote(hit.Doc.ID())
 	if err != nil {
 		return SearchResult{}, fmt.Errorf("get note %q: %w", hit.Doc.ID(), err)
 	}
 
 	// If the search was ordered using a text field then hit.score is the
-	// value of that field. This isn't useful so only set self._score if it
+	// value of that field. This isn't useful so only set _score if it
 	// is a float.
 
 	var titleHighlights, contentHighlights, tagMatches string
@@ -75,74 +148,41 @@ func NewSearchResult(notesDir string, hit fts.Hit[NoteDocument]) (SearchResult, 
 	}, nil
 }
 
-var (
-	TAGS_RE      = regexp.MustCompile(`(?:^#|\s#)(\w+)(?:\s|$)`)
-	CODEBLOCK_RE = regexp.MustCompile("`{1,3}.*?`{1,3}" /*, re.DOTALL*/)
-)
-
-// Strip tags from the given content and return a tuple consisting of:
-//
-// - The content without the tags.
-// - A set of tags converted to lowercase.
-func extract_tags(content string) (string, Set[string]) {
-	content_ex_codeblock := CODEBLOCK_RE.ReplaceAllLiteralString(content, "")
-	_, tags := re_extract(TAGS_RE, content_ex_codeblock)
-	content_ex_tags, _ := re_extract(TAGS_RE, content)
-	// try {
-	tagsSet := Set[string]{}
-	for _, tag := range tags {
-		tagsSet[strings.ToLower(tag)] = struct{}{}
-	}
-	return content_ex_tags, tagsSet
-	// } except IndexError{
-	// return content, set()
-	// }
-}
-
-type Flatnotes struct {
-	dir   string
-	index *fts.Index[NoteDocument]
-}
-
-func NewFlatnotes(dir string) (Flatnotes, error) {
-	if stat, err := os.Stat(dir); os.IsNotExist(err) {
-		return Flatnotes{}, fmt.Errorf("not a directory: %q does not exist", dir)
-	} else if !stat.IsDir() {
-		return Flatnotes{}, fmt.Errorf("not a directory: %q is not a directory", dir)
-	}
-
-	self := Flatnotes{
-		dir: dir,
-	}
-
-	// for now loaded from fs on startup
-	self.index = fts.NewIndex[NoteDocument]()
-
-	if err := self.update_index(); err != nil {
-		return Flatnotes{}, fmt.Errorf("update index: %w", err)
-	}
-
-	return self, nil
-}
-
 // Load the note index or create new if not exists.
 // Add a Note object to the index using the given writer. If the
 // filename already exists in the index an update will be performed
 // instead.
-func (self *Flatnotes) _add_note_to_index(note Note) error {
-	doc, err := note.Document()
+func (app *App) addNoteToIndex(note Note) error {
+	doc, err := toDocument(note)
 	if err != nil {
 		return fmt.Errorf("get document: %w", err)
 	}
 
-	self.index.Add(doc)
+	app.index.Add(doc)
 	return nil
+}
+
+func (app *App) getNote(title string) (Note, error) {
+	filepath := noteFilepath(app.dir, title)
+	if !ospathexists(filepath) {
+		return Note{}, ErrNotFound
+	}
+
+	// if !isValidTitle(title) {
+	// 	return Note{}, ErrTitleInvalid
+	// }
+
+	return Note{
+		// Title:    strings.TrimSpace(title),
+		Title:    title,
+		NotesDir: app.dir,
+	}, nil
 }
 
 // Return a list containing a Note object for every file in the notes
 // directory.
-func (self *Flatnotes) _get_notes() ([]Note, error) {
-	matches, err := filepath.Glob(filepath.Join(self.dir, "*"+MARKDOWN_EXT))
+func (app *App) getNotes() ([]Note, error) {
+	matches, err := filepath.Glob(filepath.Join(app.dir, "*"+_markdownExt))
 	if err != nil {
 		return nil, fmt.Errorf("glob: %w", err)
 	}
@@ -150,7 +190,7 @@ func (self *Flatnotes) _get_notes() ([]Note, error) {
 	res := []Note{}
 	for _, match := range matches {
 		_, file := filepath.Split(match)
-		note, err := NewNote(self.dir, strip_ext(file), false)
+		note, err := app.getNote(stripExt(file))
 		if err != nil {
 			return nil, fmt.Errorf("new note %q: %w", file, err)
 		}
@@ -162,22 +202,22 @@ func (self *Flatnotes) _get_notes() ([]Note, error) {
 
 // Synchronize the index with the notes directory.
 // Specify clean=True to completely rebuild the index
-func (self *Flatnotes) update_index() error {
+func (app *App) updateIndex() error {
 	indexed := Set[string]{}
-	for id, doc := range self.index.Documents {
-		idx_filename := id + MARKDOWN_EXT
-		idx_filepath := filepath.Join(self.dir, idx_filename)
-		if _, err := os.Stat(idx_filepath); os.IsNotExist(err) {
+	for id, doc := range app.index.Documents {
+		idxFilename := id + _markdownExt
+		idxFilepath := filepath.Join(app.dir, idxFilename)
+		if _, err := os.Stat(idxFilepath); os.IsNotExist(err) {
 			// Delete missing
-			self.index.Remove(id)
+			app.index.Remove(id)
 			log.Println(id, "removed from index")
-		} else if stat, err := os.Stat(idx_filepath); err == nil && stat.ModTime().After(doc.Modtime) {
-			note, err := NewNote(self.dir, id, false)
+		} else if stat, err := os.Stat(idxFilepath); err == nil && stat.ModTime().After(doc.Modtime) {
+			note, err := app.getNote(id)
 			if err != nil {
 				return fmt.Errorf("get note %q: %w", id, err)
 			}
 
-			if err := self._add_note_to_index(note); err != nil {
+			if err := app.addNoteToIndex(note); err != nil {
 				return fmt.Errorf("add note %q to index: %w", id, err)
 			}
 
@@ -192,14 +232,14 @@ func (self *Flatnotes) update_index() error {
 	}
 
 	// Add new
-	notes, err := self._get_notes()
+	notes, err := app.getNotes()
 	if err != nil {
 		return fmt.Errorf("get notes: %w", err)
 	}
 
 	for _, note := range notes {
 		if !indexed.Has(note.Title) {
-			if err := self._add_note_to_index(note); err != nil {
+			if err := app.addNoteToIndex(note); err != nil {
 				return fmt.Errorf("add note %q to index: %w", note.Title, err)
 			}
 
@@ -210,12 +250,21 @@ func (self *Flatnotes) update_index() error {
 }
 
 // Return a list of all indexed tags.
-func (self *Flatnotes) GetTags() ([]string, error) {
-	return nil, self.update_index()
-	// return self.index.field_terms("tags")
+func (app *App) GetTags() (Set[string], error) {
+	if err := app.updateIndex(); err != nil {
+		return nil, err
+	}
+
+	res := Set[string]{}
+	for _, note := range app.index.Documents {
+		for tag := range note.Tags {
+			res[tag] = struct{}{}
+		}
+	}
+	return res, nil
 }
 
-func (self *Flatnotes) pre_process_search_term(term string) string {
+func (app *App) preProcessSearchTerm(term string) string {
 	term = strings.TrimSpace(term)
 	// Replace "#tagname" with "tags:tagname"
 	// term = TAGS_RE.ReplaceAllStringFunc(term, func(s string) string {
@@ -242,22 +291,22 @@ const (
 )
 
 // Search the index for the given term.
-func (self *Flatnotes) Search(
+func (app *App) Search(
 	phrase string,
 	sortt Sort,
 	order Order,
 	limit int,
-) ([]SearchResult, error) {
-	if err := self.update_index(); err != nil {
+) ([]SearchResultModel, error) {
+	if err := app.updateIndex(); err != nil {
 		return nil, fmt.Errorf("update index: %w", err)
 	}
 
-	phrase = self.pre_process_search_term(phrase)
+	phrase = app.preProcessSearchTerm(phrase)
 
 	var hits []fts.Hit[NoteDocument]
 	// Parse Query
 	if phrase == "*" {
-		hits = lo.MapToSlice(self.index.Documents, func(_ string, doc NoteDocument) fts.Hit[NoteDocument] {
+		hits = lo.MapToSlice(app.index.Documents, func(_ string, doc NoteDocument) fts.Hit[NoteDocument] {
 			return fts.Hit[NoteDocument]{
 				Doc:   doc,
 				Score: 0,
@@ -274,7 +323,7 @@ func (self *Flatnotes) Search(
 		// }
 
 		// Run Search
-		hits = self.index.Search(
+		hits = app.index.Search(
 			phrase,
 			// /*sortedby=*/ sort,
 			// /*reverse=*/ reverse,
@@ -291,14 +340,125 @@ func (self *Flatnotes) Search(
 		hits = lo.Slice(hits, 0, limit)
 	}
 
-	res := []SearchResult{}
+	res := []SearchResultModel{}
 	for _, hit := range hits {
-		searchRes, err := NewSearchResult(self.dir, hit)
+		searchRes, err := app.newSearchResult(hit)
 		if err != nil {
 			return nil, fmt.Errorf("map search result %v: %w", hit, err)
 		}
 
-		res = append(res, searchRes)
+		modtime, err := searchRes.LastModified()
+		if err != nil {
+			return nil, fmt.Errorf("get last modified time %q: %w", searchRes.Title, err)
+		}
+
+		toOption := func(s string) *string {
+			if s == "" {
+				return nil
+			}
+			return &s
+		}
+		res = append(res, SearchResultModel{
+			Score:             searchRes.Score,
+			Title:             searchRes.Title,
+			LastModified:      modtime.Unix(),
+			TitleHighlights:   toOption(searchRes.TitleHighlights),
+			ContentHighlights: toOption(searchRes.ContentHighlights),
+			TagMatches:        toOption(searchRes.TagMatches),
+		})
 	}
 	return res, nil
+}
+
+func (app *App) GetNote(title string, includeContent bool) (NoteContentResponseModel, error) {
+	note, err := app.getNote(title)
+	if err != nil {
+		return NoteContentResponseModel{}, fmt.Errorf("get note %q: %w", title, err)
+	}
+
+	modtime, err := note.LastModified()
+	if err != nil {
+		return NoteContentResponseModel{}, fmt.Errorf("get last modified time %q: %w", title, err)
+	}
+
+	resContent := (*string)(nil)
+	if includeContent {
+		content, err := note.GetContent()
+		if err != nil {
+			return NoteContentResponseModel{}, fmt.Errorf("get content: %w", err)
+		}
+
+		resContent = lo.ToPtr(string(content))
+	}
+
+	return NoteContentResponseModel{
+		NoteResponseModel: NoteResponseModel{
+			Title:        note.Title,
+			LastModified: modtime.Unix(),
+		},
+		Content: resContent,
+	}, nil
+}
+
+func (app *App) CreateNote(data NotePostModel) (NoteContentResponseModel, error) {
+	if !isValidTitle(data.Title) {
+		return NoteContentResponseModel{}, ErrTitleInvalid
+	}
+
+	note, lastModified, err := createNote(app.dir, data.Title, data.Content)
+	if err != nil {
+		return NoteContentResponseModel{}, err
+	}
+
+	return NoteContentResponseModel{
+		NoteResponseModel: NoteResponseModel{
+			Title:        note.Title,
+			LastModified: lastModified.Unix(),
+		},
+		Content: &data.Content,
+	}, nil
+}
+
+func (app *App) UpdateNote(title string, data NotePatchModel) (NoteContentResponseModel, error) {
+	if !isValidTitle(*data.NewTitle) {
+		return NoteContentResponseModel{}, ErrTitleInvalid
+	}
+
+	note, err := app.getNote(title)
+	if err != nil {
+		return NoteContentResponseModel{}, fmt.Errorf("get note %q: %w", title, err)
+	}
+
+	if data.NewTitle != nil {
+		if err := note.SetTitle(*data.NewTitle); err != nil {
+			return NoteContentResponseModel{}, fmt.Errorf("set note %q title to %q: %w", title, *data.NewTitle, err)
+		}
+	}
+	if data.NewContent != nil {
+		if err := note.SetContent([]byte(*data.NewContent)); err != nil {
+			return NoteContentResponseModel{}, fmt.Errorf("set note %q content: %w", title, err)
+		}
+	}
+
+	doc, err := toDocument(note)
+	if err != nil {
+		return NoteContentResponseModel{}, fmt.Errorf("get note data %q: %w", title, err)
+	}
+
+	return NoteContentResponseModel{
+		NoteResponseModel: NoteResponseModel{
+			Title:        note.Title,
+			LastModified: doc.Modtime.Unix(),
+		},
+		Content: lo.ToPtr(doc.Content),
+	}, nil
+}
+
+func (app *App) DeleteNote(title string) error {
+	note, err := app.getNote(title)
+	if err != nil {
+		return err
+	}
+
+	return note.Delete()
 }

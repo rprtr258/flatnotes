@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/samber/lo"
 )
 
 func ospathexists(path string) bool {
@@ -14,7 +16,7 @@ func ospathexists(path string) bool {
 	return !os.IsNotExist(err)
 }
 
-const MARKDOWN_EXT = ".md"
+const _markdownExt = ".md"
 
 type InvalidTitleError struct {
 	message string
@@ -27,89 +29,87 @@ func (e InvalidTitleError) Error() string {
 type NoteDocument struct {
 	Title   string
 	Content string
-	Tags    []string
+	Tags    Set[string]
 	Modtime time.Time
 }
 
-func (self NoteDocument) ID() string {
-	return self.Title
+func (d NoteDocument) ID() string {
+	return d.Title
 }
 
 var _reImageBase64 = regexp.MustCompile(`!\[[^\[\]]*\]\(data:image/\w+;base64,[a-zA-Z0-9+/=]+\)`)
 
-func (self NoteDocument) Fields() map[string]string {
+func (d NoteDocument) Fields() map[string]string {
 	return map[string]string{
-		"Title":   self.Title,
-		"Content": _reImageBase64.ReplaceAllString(self.Content, ""),
-		"Tags":    strings.Join(self.Tags, " "),
-	}
-}
-
-func (self NoteDocument) note() Note {
-	return Note{
-		Title: self.Title,
-		Tags:  self.Tags,
+		"Title":   d.Title,
+		"Content": _reImageBase64.ReplaceAllString(d.Content, ""),
+		"Tags":    strings.Join(lo.Keys(d.Tags), " "),
 	}
 }
 
 type Note struct {
 	Title    string
 	NotesDir string
-	Tags     []string // TODO: remove
-}
-
-func NewNote(notesDir, title string, new bool) (Note, error) {
-	self := Note{
-		Title:    strings.TrimSpace(title),
-		NotesDir: notesDir,
-		Tags:     nil,
-	}
-	if !_is_valid_title(self.Title) {
-		return Note{}, fmt.Errorf("InvalidTitleError")
-	}
-
-	filepath := noteFilepath(notesDir, self.Title)
-	if new && ospathexists(filepath) {
-		return Note{}, fmt.Errorf("FileExistsError")
-	}
-
-	if new {
-		f, err := os.Create(filepath)
-		if err != nil {
-			return Note{}, err
-		}
-
-		return self, f.Close()
-	}
-
-	return self, nil
 }
 
 func noteFilepath(dir, title string) string {
-	return filepath.Join(dir, title+MARKDOWN_EXT)
+	return filepath.Join(dir, title+_markdownExt)
 }
 
-func (self Note) Document() (NoteDocument, error) {
-	content, err := self.GetContent()
-	if err != nil {
-		return NoteDocument{}, fmt.Errorf("get content %q: %w", self.Title, err)
+func createNote(dir, title, content string) (Note, time.Time, error) {
+	note := Note{
+		Title:    title,
+		NotesDir: dir,
 	}
 
-	modtime, err := self.LastModified()
+	filepath := noteFilepath(dir, note.Title)
+
+	f, err := os.Create(filepath)
 	if err != nil {
-		return NoteDocument{}, fmt.Errorf("get last modified time %q: %w", self.Title, err)
+		if os.IsExist(err) {
+			return Note{}, time.Time{}, fmt.Errorf("file exists: %q", filepath)
+		}
+
+		return Note{}, time.Time{}, err
+	}
+	defer f.Close()
+
+	if _, err := f.Write([]byte(content)); err != nil {
+		return Note{}, time.Time{}, fmt.Errorf("write content: %w", err)
+	}
+
+	stat, err := f.Stat()
+	if err != nil {
+		return Note{}, time.Time{}, fmt.Errorf("stat: %w", err)
+	}
+
+	lastModified := stat.ModTime()
+	return note, lastModified, nil
+}
+
+func toDocument(note Note) (NoteDocument, error) {
+	content, err := note.GetContent()
+	if err != nil {
+		return NoteDocument{}, fmt.Errorf("get content %q: %w", note.Title, err)
+	}
+
+	_, tags := extractTags(string(content))
+
+	modtime, err := note.LastModified()
+	if err != nil {
+		return NoteDocument{}, fmt.Errorf("get last modified time %q: %w", note.Title, err)
 	}
 
 	return NoteDocument{
-		Title:   self.Title,
+		Title:   note.Title,
 		Content: string(content),
-		Tags:    self.Tags,
+		Tags:    tags,
 		Modtime: modtime,
 	}, nil
 }
 
-func (self Note) LastModified() (time.Time, error) {
-	filepath := noteFilepath(self.NotesDir, self.Title)
+func (n Note) LastModified() (time.Time, error) {
+	filepath := noteFilepath(n.NotesDir, n.Title)
 	stat, err := os.Stat(filepath)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("get last modified time %q: %w", filepath, err)
@@ -119,17 +119,12 @@ func (self Note) LastModified() (time.Time, error) {
 }
 
 // Editable Properties
-func (self *Note) SetTitle(newTitle string) error {
-	newTitle = strings.TrimSpace(newTitle)
-	if !_is_valid_title(newTitle) {
-		return fmt.Errorf("InvalidTitleError")
-	}
-
-	oldTitle := self.Title
-	self.Title = newTitle
+func (n *Note) SetTitle(newTitle string) error {
+	oldTitle := n.Title
+	n.Title = newTitle
 	if err := os.Rename(
-		noteFilepath(self.NotesDir, oldTitle),
-		noteFilepath(self.NotesDir, newTitle),
+		noteFilepath(n.NotesDir, oldTitle),
+		noteFilepath(n.NotesDir, newTitle),
 	); err != nil {
 		return fmt.Errorf("rename %q to %q: %w", oldTitle, newTitle, err)
 	}
@@ -137,26 +132,19 @@ func (self *Note) SetTitle(newTitle string) error {
 	return nil
 }
 
-func (self Note) GetContent() ([]byte, error) {
-	return os.ReadFile(noteFilepath(self.NotesDir, self.Title))
+func (n Note) GetContent() ([]byte, error) {
+	return os.ReadFile(noteFilepath(n.NotesDir, n.Title))
 }
 
-func (self Note) SetContent(new_content []byte) error {
-	filepath := noteFilepath(self.NotesDir, self.Title)
+func (n Note) SetContent(newContent []byte) error {
+	filepath := noteFilepath(n.NotesDir, n.Title)
 	if !ospathexists(filepath) {
 		return fmt.Errorf("FileNotFoundError")
 	}
 
-	return os.WriteFile(filepath, new_content, 0o644)
+	return os.WriteFile(filepath, newContent, 0o644)
 }
 
-func (self Note) Delete() error {
-	return os.Remove(noteFilepath(self.NotesDir, self.Title))
-}
-
-// Return False if the declared title contains any of the following
-// characters: <>:"/\|?*
-func _is_valid_title(title string) bool {
-	const invalid_chars = `<>:"/\|?*`
-	return !strings.ContainsAny(title, invalid_chars)
+func (n Note) Delete() error {
+	return os.Remove(noteFilepath(n.NotesDir, n.Title))
 }

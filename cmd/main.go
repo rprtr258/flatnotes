@@ -12,11 +12,12 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/rprtr258/flatnotes/internal"
 	"github.com/samber/lo"
+
+	"github.com/rprtr258/flatnotes/internal"
 )
 
-func setupApp(app *fiber.App, config internal.Config, flatnotes internal.Flatnotes) {
+func setupApp(app *fiber.App, config internal.Config, flatnotes internal.App) {
 	// totp = (
 	//     pyotp.TOTP(config.totp_key) if config.auth_type == AuthType.TOTP else None
 	// )
@@ -72,41 +73,18 @@ func setupApp(app *fiber.App, config internal.Config, flatnotes internal.Flatnot
 			return fiber.NewError(fiber.StatusBadRequest, fmt.Errorf("invalid title: %w", err).Error())
 		}
 
-		include_content := c.QueryBool("include_content", true)
+		includeContent := c.QueryBool("include_content", true)
 
-		// try:
-		note, err := internal.NewNote(config.DataPath, title, false)
+		res, err := flatnotes.GetNote(title, includeContent)
 		if err != nil {
-			return fmt.Errorf("get note %q: %w", title, err)
+			return err
+			// except InvalidTitleError:
+			//     return invalid_title_response
+			// except FileNotFoundError:
+			//     return note_not_found_response
 		}
 
-		modtime, err := note.LastModified()
-		if err != nil {
-			return fmt.Errorf("get last modified time %q: %w", title, err)
-		}
-
-		noteHeader := internal.NoteResponseModel{
-			Title:        note.Title,
-			LastModified: modtime.Unix(),
-		}
-
-		if include_content {
-			content, err := note.GetContent()
-			if err != nil {
-				return fiber.NewError(fiber.StatusInternalServerError, err.Error())
-			}
-
-			return c.JSON(internal.NoteContentResponseModel{
-				NoteResponseModel: noteHeader,
-				Content:           lo.ToPtr(string(content)),
-			})
-		}
-
-		return c.JSON(noteHeader)
-		// except InvalidTitleError:
-		//     return invalid_title_response
-		// except FileNotFoundError:
-		//     return note_not_found_response
+		return c.JSON(res)
 	})
 
 	if config.AuthType != internal.AuthTypeReadOnly {
@@ -114,36 +92,16 @@ func setupApp(app *fiber.App, config internal.Config, flatnotes internal.Flatnot
 			app.Post("/api/token",
 				func(c *fiber.Ctx) error {
 					var data internal.LoginModel
-					_ = c.BodyParser(&data)
-
-					username_correct := config.Username == data.Username
-
-					expected_password := config.Password
-					var current_totp string
-					if config.AuthType == internal.AuthTypeTOTP {
-						current_totp = "" // totp.now()
-						// expected_password += current_totp
-					}
-					password_correct := expected_password == data.Password
-
-					if !username_correct || !password_correct ||
-						// Prevent TOTP from being reused
-						config.AuthType == internal.AuthTypeTOTP && last_used_totp != "" && current_totp == last_used_totp {
-						return fiber.NewError(fiber.StatusBadRequest, "Incorrect login credentials.")
+					if err := c.BodyParser(&data); err != nil {
+						return fiber.NewError(fiber.StatusBadRequest, err.Error())
 					}
 
-					access_token, err := internal.CreateAccessToken(config, config.Username)
+					res, err := internal.Authenticate(config, data, &last_used_totp)
 					if err != nil {
-						return fiber.NewError(fiber.StatusUnauthorized, fmt.Sprintf("create access token: %s", err.Error()))
+						return fiber.NewError(fiber.StatusUnauthorized, err.Error())
 					}
 
-					if config.AuthType == internal.AuthTypeTOTP {
-						last_used_totp = current_totp
-					}
-					return c.JSON(internal.TokenModel{
-						AccessToken: access_token,
-						TokenType:   "bearer",
-					})
+					return c.JSON(res)
 				})
 		}
 
@@ -153,33 +111,18 @@ func setupApp(app *fiber.App, config internal.Config, flatnotes internal.Flatnot
 			if err := c.BodyParser(&data); err != nil {
 				return fiber.NewError(fiber.StatusBadRequest, err.Error())
 			}
+			data.Title = strings.TrimSpace(data.Title)
 
-			//         try:
-			note, err := internal.NewNote(config.DataPath, data.Title, true)
+			res, err := flatnotes.CreateNote(data)
 			if err != nil {
-				return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("new note: %w", err).Error())
+				// except InvalidTitleError:
+				//     return invalid_title_response
+				// except FileExistsError:
+				//     return title_exists_response
+				return err
 			}
 
-			if err := note.SetContent([]byte(data.Content)); err != nil {
-				return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("set note content: %w", err).Error())
-			}
-
-			lastModified, err := note.LastModified()
-			if err != nil {
-				return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("get last modified time: %w", err).Error())
-			}
-
-			return c.JSON(internal.NoteContentResponseModel{
-				NoteResponseModel: internal.NoteResponseModel{
-					Title:        note.Title,
-					LastModified: lastModified.Unix(),
-				},
-				Content: &data.Content,
-			})
-			//         except InvalidTitleError:
-			//             return invalid_title_response
-			//         except FileExistsError:
-			//             return title_exists_response
+			return c.JSON(res)
 		})
 
 		app.Patch("/api/notes/:title", authenticate, func(c *fiber.Ctx) error {
@@ -187,47 +130,25 @@ func setupApp(app *fiber.App, config internal.Config, flatnotes internal.Flatnot
 			if err != nil {
 				return fiber.NewError(fiber.StatusBadRequest, fmt.Errorf("invalid title: %w", err).Error())
 			}
+			title = strings.TrimSpace(title)
 
 			var new_data internal.NotePatchModel
 			if err := c.BodyParser(&new_data); err != nil {
 				return fiber.NewError(fiber.StatusBadRequest, err.Error())
 			}
 
-			// try:
-			note, err := internal.NewNote(config.DataPath, title, false)
+			res, err := flatnotes.UpdateNote(title, new_data)
 			if err != nil {
-				return fmt.Errorf("get note %q: %w", title, err)
+				// except InvalidTitleError:
+				//     return invalid_title_response
+				// except FileExistsError:
+				//     return title_exists_response
+				// except FileNotFoundError:
+				//     return note_not_found_response
+				return err
 			}
 
-			if new_data.NewTitle != nil {
-				if err := note.SetTitle(*new_data.NewTitle); err != nil {
-					return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("set note %q title to %q: %w", title, *new_data.NewTitle, err).Error())
-				}
-			}
-			if new_data.NewContent != nil {
-				if err := note.SetContent([]byte(*new_data.NewContent)); err != nil {
-					return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("set note %q content: %w", title, err).Error())
-				}
-			}
-
-			doc, err := note.Document()
-			if err != nil {
-				return fmt.Errorf("get note data %q: %w", title, err)
-			}
-
-			return c.JSON(internal.NoteContentResponseModel{
-				NoteResponseModel: internal.NoteResponseModel{
-					Title:        note.Title,
-					LastModified: doc.Modtime.Unix(),
-				},
-				Content: lo.ToPtr(doc.Content),
-			})
-			// except InvalidTitleError:
-			//     return invalid_title_response
-			// except FileExistsError:
-			//     return title_exists_response
-			// except FileNotFoundError:
-			//     return note_not_found_response
+			return c.JSON(res)
 		})
 
 		app.Delete("/api/notes/:title", authenticate, func(c *fiber.Ctx) error {
@@ -236,12 +157,15 @@ func setupApp(app *fiber.App, config internal.Config, flatnotes internal.Flatnot
 				return fiber.NewError(fiber.StatusBadRequest, fmt.Errorf("invalid title: %w", err).Error())
 			}
 
-			note, _ := internal.NewNote(config.DataPath, title, false)
-			return note.Delete()
-			// except InvalidTitleError:
-			//     return invalid_title_response
-			// except FileNotFoundError:
-			//     return note_not_found_response
+			if err := flatnotes.DeleteNote(title); err != nil {
+				// except InvalidTitleError:
+				//     return invalid_title_response
+				// except FileNotFoundError:
+				//     return note_not_found_response
+				return err
+			}
+
+			return nil
 		})
 	}
 
@@ -252,7 +176,7 @@ func setupApp(app *fiber.App, config internal.Config, flatnotes internal.Flatnot
 			return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("get tags: %w", err).Error())
 		}
 
-		return c.JSON([]string(tags))
+		return c.JSON([]string(lo.Keys(tags)))
 	})
 
 	// Perform a full text search on all notes.
@@ -271,33 +195,11 @@ func setupApp(app *fiber.App, config internal.Config, flatnotes internal.Flatnot
 			Default(internal.OrderDesc)
 		limit := c.QueryInt("limit", 0)
 
-		hits, err := flatnotes.Search(term, sort, order, limit)
+		res, err := flatnotes.Search(term, sort, order, limit)
 		if err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("search: %w", err).Error())
 		}
 
-		res := []internal.SearchResultModel{}
-		for _, hit := range hits {
-			modtime, err := hit.LastModified()
-			if err != nil {
-				return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("get last modified time %q: %w", hit.Title, err).Error())
-			}
-
-			toOption := func(s string) *string {
-				if s == "" {
-					return nil
-				}
-				return &s
-			}
-			res = append(res, internal.SearchResultModel{
-				Score:             hit.Score,
-				Title:             hit.Title,
-				LastModified:      modtime.Unix(),
-				TitleHighlights:   toOption(hit.TitleHighlights),
-				ContentHighlights: toOption(hit.ContentHighlights),
-				TagMatches:        toOption(hit.TagMatches),
-			})
-		}
 		return c.JSON(res)
 	})
 
@@ -334,13 +236,13 @@ func run(ctx context.Context) error {
 	// 	Title:    "Fiber API documentation",
 	// }))
 
-	flatnotes, err := internal.NewFlatnotes(config.DataPath)
+	appLogic, err := internal.New(config.DataPath)
 	if err != nil {
 		return fmt.Errorf("NewFlatnotes: %w", err)
 	}
 	// defer flatnotes.index.Close()
 
-	setupApp(app, config, flatnotes)
+	setupApp(app, config, appLogic)
 
 	go func() {
 		<-ctx.Done()
