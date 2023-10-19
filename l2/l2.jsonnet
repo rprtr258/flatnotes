@@ -39,4 +39,12 @@ local meta = {
 
         Authorization: 'Bearer ${TOKEN}'
     ||| % meta,
+    "tags.l2": |||
+        %(get_token)s
+        ---
+        GET
+        ${REMOTE}/api/tags
+
+        Authorization: 'Bearer ${TOKEN}'
+    ||| % meta,
 }
