@@ -51,7 +51,6 @@ func reExtract(re *regexp.Regexp, s string) (string, []string) {
 func extractTags(content string) (string, Set[string]) {
 	contentExCodeblock := _reCodeblocks.ReplaceAllLiteralString(content, "")
 	_, tags := reExtract(_reTags, contentExCodeblock)
-	log.Printf("%#v\n", tags)
 	contentExTags, _ := reExtract(_reTags, content)
 	tagsSet := Set[string]{}
 	for _, tag := range tags {
