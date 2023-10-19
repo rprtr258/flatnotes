@@ -36,10 +36,12 @@ func isValidTitle(title string) bool {
 //
 // - `string` with matches removed
 // - list of matches
-func reExtract(re *regexp.Regexp, string string) (string, []string) {
-	text := re.ReplaceAllLiteralString(string, "")
-	matches := re.FindStringSubmatch(string)
-	return text, matches
+func reExtract(re *regexp.Regexp, s string) (string, []string) {
+	text := re.ReplaceAllLiteralString(s, "")
+	matches := re.FindAllStringSubmatch(s, -1)
+	return text, lo.Map(matches, func(match []string, _ int) string {
+		return match[1]
+	})
 }
 
 // Strip tags from the given content and return a tuple consisting of:
@@ -49,16 +51,13 @@ func reExtract(re *regexp.Regexp, string string) (string, []string) {
 func extractTags(content string) (string, Set[string]) {
 	contentExCodeblock := _reCodeblocks.ReplaceAllLiteralString(content, "")
 	_, tags := reExtract(_reTags, contentExCodeblock)
+	log.Printf("%#v\n", tags)
 	contentExTags, _ := reExtract(_reTags, content)
-	// try {
 	tagsSet := Set[string]{}
 	for _, tag := range tags {
 		tagsSet[strings.ToLower(tag)] = struct{}{}
 	}
 	return contentExTags, tagsSet
-	// } except IndexError{
-	// return content, set()
-	// }
 }
 
 func stripExt(filename string) string {

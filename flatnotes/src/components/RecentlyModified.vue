@@ -16,6 +16,7 @@ export default {
   data: function () {
     return {
       notes: null,
+      tags: null,
       loadingFailed: false,
       loadingFailedMessage: "Failed to load notes",
       loadingFailedIcon: null,
@@ -55,19 +56,51 @@ export default {
         });
     },
 
+    getTags: function () {
+      let parent = this;
+      this.loadingFailed = false;
+      api
+        .get("/api/tags")
+        .then(function (response) {
+          parent.tags = [];
+          if (response.data.length) {
+            response.data.forEach(function (tag) {
+              parent.tags.push(tag);
+            });
+          } else {
+            parent.loadingFailedMessage = "No tags";
+            parent.loadingFailedIcon = "pencil";
+            parent.loadingFailed = true;
+          }
+        })
+        .catch(function (error) {
+          parent.loadingFailed = true;
+          if (!error.handled) {
+            EventBus.$emit("unhandledServerError");
+          }
+        });
+    },
+
     openNote: function (href, event) {
       EventBus.$emit("navigate", href, event);
+    },
+
+    openTag: function (tag, event) {
+      EventBus.$emit("navigate", "/search?term=" + encodeURIComponent(tag), event);
     },
   },
 
   created: function () {
     this.getNotes();
+    this.getTags();
   },
 };
 </script>
 
 <template>
-  <div>
+  <div
+    class="justify-content-top"
+  >
     <!-- Loading -->
     <div
       v-if="notes == null || notes.length == 0"
@@ -79,18 +112,34 @@ export default {
         :failedBootstrapIcon="loadingFailedIcon"
         :show-loader="false"
       />
-    </div>
-
-    <!-- Notes Loaded -->
-    <div v-else class="d-flex flex-column align-items-center">
-      <p class="mini-header mb-1">RECENTLY MODIFIED</p>
-      <a
-        v-for="note in notes"
-        :key="note.title"
-        class="bttn"
-        :href="note.href"
-        @click.prevent="openNote(note.href, $event)"
-      >{{ note.title }}</a>
+    </div> <!-- Notes Loaded -->
+      <div v-else
+        class="d-flex flex-row align-items-start"
+      >
+        <div
+          class="d-flex flex-column align-items-center"
+        >
+          <p class="mini-header mb-1">RECENTLY MODIFIED</p>
+          <a
+            v-for="note in notes"
+            :key="note.title"
+            class="bttn"
+            :href="note.href"
+            @click.prevent="openNote(note.href, $event)"
+          >{{ note.title }}</a>
+        </div>
+        <div
+          class="d-flex flex-column align-items-center"
+        >
+          <p class="mini-header mb-1">TAGS</p>
+          <a
+            v-for="tag in tags"
+            :key="tag"
+            class="bttn"
+            :href="tag"
+            @click.prevent="openTag(tag, $event)"
+          >#{{ tag }}</a>
+        </div>
     </div>
   </div>
 </template>
