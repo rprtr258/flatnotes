@@ -86,7 +86,7 @@ export default {
     },
 
     openTag: function (tag, event) {
-      EventBus.$emit("navigate", "/search?term=" + encodeURIComponent(tag), event);
+      EventBus.$emit("navigate", "/search?term=" + encodeURIComponent("#" + tag), event);
     },
   },
 

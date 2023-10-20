@@ -262,15 +262,6 @@ func (app *App) GetTags() (Set[string], error) {
 	return res, nil
 }
 
-func (app *App) preProcessSearchTerm(term string) string {
-	term = strings.TrimSpace(term)
-	// Replace "#tagname" with "tags:tagname"
-	// term = TAGS_RE.ReplaceAllStringFunc(term, func(s string) string {
-	// 	return "tags:" + s[1:]
-	// })
-	return term
-}
-
 type Sort string
 
 const (
@@ -299,7 +290,7 @@ func (app *App) Search(
 		return nil, fmt.Errorf("update index: %w", err)
 	}
 
-	phrase = app.preProcessSearchTerm(phrase)
+	phrase = strings.TrimSpace(phrase)
 
 	var hits []fts.Hit[NoteDocument]
 	// Parse Query
@@ -327,6 +318,10 @@ func (app *App) Search(
 			// /*reverse=*/ reverse,
 			// /*limit=*/ limit,
 			// /*terms=*/ true,
+			func() []string {
+				_, tags := extractTags(phrase)
+				return lo.Keys(tags)
+			}(),
 		)
 	}
 

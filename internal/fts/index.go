@@ -1,6 +1,10 @@
 package fts
 
-import "github.com/samber/lo"
+import (
+	"strings"
+
+	"github.com/samber/lo"
+)
 
 type Document interface {
 	ID() string
@@ -78,15 +82,25 @@ type Hit[D Document] struct {
 }
 
 // search queries the index for the given text.
-func (idx Index[D]) Search(query string) []Hit[D] {
-	var r []string
+func (idx Index[D]) Search(query string, tags []string) []Hit[D] {
+	var tagDocIDs []string
+
+	for id, doc := range idx.Documents {
+		if len(lo.Intersect(strings.Split(doc.Fields()["Tags"], " "), tags)) > 0 {
+			if !lo.Contains(tagDocIDs, id) {
+				tagDocIDs = append(tagDocIDs, id)
+			}
+		}
+	}
+
+	var docIDs []string
 	queryTokens := analyze(query)
 	for _, token := range queryTokens {
 		if ids, ok := idx.InvIndex[token.Term]; ok {
-			if r == nil {
-				r = ids
+			if docIDs == nil {
+				docIDs = ids
 			} else {
-				r = intersection(r, ids)
+				docIDs = intersection(docIDs, ids)
 			}
 		} else {
 			// Token doesn't exist.
@@ -103,7 +117,13 @@ func (idx Index[D]) Search(query string) []Hit[D] {
 		// 	}
 		// }
 	}
-	return lo.Map(r, func(id string, _ int) Hit[D] {
+	for _, id := range docIDs {
+		if !lo.Contains(tagDocIDs, id) {
+			tagDocIDs = append(tagDocIDs, id)
+		}
+	}
+
+	return lo.Map(tagDocIDs, func(id string, _ int) Hit[D] {
 		return Hit[D]{
 			Score: 0,
 			Doc:   idx.Documents[id],
