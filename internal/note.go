@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rprtr258/flatnotes/internal/fts"
 	"github.com/samber/lo"
 )
 
@@ -39,11 +40,21 @@ func (d NoteDocument) ID() string {
 
 var _reImageBase64 = regexp.MustCompile(`!\[[^\[\]]*\]\(data:image/\w+;base64,[a-zA-Z0-9+/=]+\)`)
 
-func (d NoteDocument) Fields() map[string]string {
-	return map[string]string{
-		"Title":   d.Title,
-		"Content": _reImageBase64.ReplaceAllString(d.Content, ""),
-		"Tags":    strings.Join(lo.Keys(d.Tags), " "),
+func (d NoteDocument) Fields() map[string]fts.DocumentField {
+	return map[string]fts.DocumentField{
+		"Title": {
+			Content: d.Title,
+			Weight:  2,
+		},
+		"Content": {
+			Content: _reImageBase64.ReplaceAllString(d.Content, ""),
+			Weight:  1,
+		},
+		"Tags": {
+			Content: strings.Join(lo.Keys(d.Tags), " "),
+			Weight:  2,
+			Terms:   lo.Keys(d.Tags),
+		},
 	}
 }
 

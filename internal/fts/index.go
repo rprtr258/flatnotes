@@ -1,14 +1,18 @@
 package fts
 
 import (
-	"strings"
-
 	"github.com/samber/lo"
 )
 
+type DocumentField struct {
+	Content string
+	Terms   []string
+	Weight  float64
+}
+
 type Document interface {
 	ID() string
-	Fields() map[string]string
+	Fields() map[string]DocumentField
 }
 
 // Index is an inverted Index. It maps tokens to document IDs.
@@ -32,7 +36,7 @@ func NewIndex[D Document]() *Index[D] {
 // add adds documents to the index.
 func (idx Index[D]) Add(doc D) {
 	for _, text := range doc.Fields() {
-		for _, token := range analyze(text) {
+		for _, token := range analyze(text.Content) {
 			if _, ok := idx.InvIndex[token.Term]; !ok {
 				idx.InvIndex[token.Term] = map[string]int{}
 			}
@@ -64,36 +68,24 @@ func (idx Index[D]) Search(query string, tags []string) []Hit[D] {
 	scores := map[string]float64{}
 	docTags := map[string][]string{}
 
-	for id, doc := range idx.Documents {
-		tgs := lo.Intersect(strings.Split(doc.Fields()["Tags"], " "), tags)
-		if len(tgs) > 0 {
-			tagScores[id]++
-			docTags[id] = tgs
-		}
-	}
-
 	queryTokens := analyze(query)
 	for _, token := range queryTokens {
 		for docID, cnt := range idx.InvIndex[token.Term] {
 			scores[docID] += float64(cnt) / float64(idx.TermFreq[token.Term])
+			// for id, doc := range idx.Documents {
+			// 	tagsField := doc.Fields()["Tags"]
+			// 	tgs := lo.Intersect(tagsField.Terms, tags)
+			// 	tagScores[id] += float64(len(tgs)) * tagsField.Weight
+			// 	docTags[id] = tgs
+			// }
 		}
-		// for term, ids := range idx.InvIndex { // stupidest fuzzy search in the world starts here
-		// 	if !strings.Contains(term, token.Term) {
-		// 		continue
-		// 	}
-		// 	if r == nil {
-		// 		r = ids
-		// 	} else {
-		// 		r = intersection(r, ids)
-		// 	}
-		// }
 	}
 
 	allDocIDs := lo.Uniq(append(lo.Keys(scores), lo.Keys(tagScores)...))
 
 	return lo.Map(allDocIDs, func(id string, _ int) Hit[D] {
 		return Hit[D]{
-			Score: scores[id] + tagScores[id]*2, // TODO: title boost 2
+			Score: scores[id] + tagScores[id], // TODO: title boost 2
 			Doc:   idx.Documents[id],
 			Terms: queryTokens,
 			Tags:  docTags[id],
