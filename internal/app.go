@@ -67,8 +67,8 @@ func stripExt(filename string) string {
 }
 
 type App struct {
-	dir   string
-	index *fts.Index[NoteDocument]
+	Dir   string
+	Index *fts.Index[NoteDocument]
 }
 
 func New(dir string) (App, error) {
@@ -79,8 +79,8 @@ func New(dir string) (App, error) {
 	}
 
 	res := App{
-		dir:   dir,
-		index: fts.NewIndex[NoteDocument](),
+		Dir:   dir,
+		Index: fts.NewIndex[NoteDocument](),
 	}
 
 	// for now loaded from fs on startup
@@ -162,12 +162,12 @@ func (app *App) addNoteToIndex(note Note) error {
 		return fmt.Errorf("get document: %w", err)
 	}
 
-	app.index.Add(doc)
+	app.Index.Add(doc)
 	return nil
 }
 
 func (app *App) getNote(title string) (Note, error) {
-	filepath := noteFilepath(app.dir, title)
+	filepath := noteFilepath(app.Dir, title)
 	if !ospathexists(filepath) {
 		return Note{}, ErrNotFound
 	}
@@ -179,14 +179,14 @@ func (app *App) getNote(title string) (Note, error) {
 	return Note{
 		// Title:    strings.TrimSpace(title),
 		Title:    title,
-		NotesDir: app.dir,
+		NotesDir: app.Dir,
 	}, nil
 }
 
 // Return a list containing a Note object for every file in the notes
 // directory.
 func (app *App) getNotes() ([]Note, error) {
-	matches, err := filepath.Glob(filepath.Join(app.dir, "*"+_markdownExt))
+	matches, err := filepath.Glob(filepath.Join(app.Dir, "*"+_markdownExt))
 	if err != nil {
 		return nil, fmt.Errorf("glob: %w", err)
 	}
@@ -208,12 +208,12 @@ func (app *App) getNotes() ([]Note, error) {
 // Specify clean=True to completely rebuild the index
 func (app *App) updateIndex() error {
 	indexed := Set[string]{}
-	for id, doc := range app.index.Documents {
+	for id, doc := range app.Index.Documents {
 		idxFilename := id + _markdownExt
-		idxFilepath := filepath.Join(app.dir, idxFilename)
+		idxFilepath := filepath.Join(app.Dir, idxFilename)
 		if _, err := os.Stat(idxFilepath); os.IsNotExist(err) {
 			// Delete missing
-			app.index.Remove(id)
+			app.Index.Remove(id)
 			log.Println(id, "removed from index")
 		} else if stat, err := os.Stat(idxFilepath); err == nil && stat.ModTime().After(doc.Modtime) {
 			note, err := app.getNote(id)
@@ -260,7 +260,7 @@ func (app *App) GetTags() (Set[string], error) {
 	}
 
 	res := Set[string]{}
-	for _, note := range app.index.Documents {
+	for _, note := range app.Index.Documents {
 		for tag := range note.Tags {
 			res[tag] = struct{}{}
 		}
@@ -301,7 +301,7 @@ func (app *App) Search(
 	var hits []fts.Hit[NoteDocument]
 	// Parse Query
 	if phrase == "*" {
-		hits = lo.MapToSlice(app.index.Documents, func(_ string, doc NoteDocument) fts.Hit[NoteDocument] {
+		hits = lo.MapToSlice(app.Index.Documents, func(_ string, doc NoteDocument) fts.Hit[NoteDocument] {
 			return fts.Hit[NoteDocument]{
 				Doc:   doc,
 				Score: 0,
@@ -318,7 +318,7 @@ func (app *App) Search(
 		// }
 
 		// Run Search
-		hits = app.index.Search(
+		hits = app.Index.Search(
 			phrase,
 			// /*sortedby=*/ sort,
 			// /*reverse=*/ reverse,
@@ -408,7 +408,7 @@ func (app *App) CreateNote(data NotePostModel) (NoteContentResponseModel, error)
 		return NoteContentResponseModel{}, ErrTitleInvalid
 	}
 
-	note, lastModified, err := createNote(app.dir, data.Title, data.Content)
+	note, lastModified, err := createNote(app.Dir, data.Title, data.Content)
 	if err != nil {
 		return NoteContentResponseModel{}, err
 	}

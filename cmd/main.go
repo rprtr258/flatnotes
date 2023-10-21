@@ -208,11 +208,17 @@ func setupApp(app *fiber.App, config internal.Config, flatnotes internal.App) {
 		return c.JSON(res)
 	})
 
-	app.Get("/api/config", func(c *fiber.Ctx) error {
-		return c.JSON(internal.ConfigModel{
-			AuthType: config.AuthType,
+	if os.Getenv("DEBUG") != "" {
+		app.Get("/api/debug/config", func(c *fiber.Ctx) error {
+			return c.JSON(internal.ConfigModel{
+				AuthType: config.AuthType,
+			})
 		})
-	})
+
+		app.Get("/api/debug/index", func(c *fiber.Ctx) error {
+			return c.JSON(flatnotes.Index)
+		})
+	}
 
 	app.Static("/", "./flatnotes/dist")
 }

@@ -52,7 +52,7 @@ func (d NoteDocument) Fields() map[string]fts.DocumentField {
 		},
 		"Tags": {
 			Content: strings.Join(lo.Keys(d.Tags), " "),
-			Weight:  2,
+			Weight:  4,
 			Terms:   lo.Keys(d.Tags),
 		},
 	}
