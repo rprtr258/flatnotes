@@ -6,6 +6,7 @@ require (
 	github.com/gofiber/fiber/v2 v2.50.0
 	github.com/golang-jwt/jwt/v5 v5.0.0
 	github.com/kljensen/snowball v0.8.0
+	github.com/rprtr258/fun v0.0.9
 	github.com/samber/lo v1.38.1
 	github.com/stretchr/testify v1.8.4
 )

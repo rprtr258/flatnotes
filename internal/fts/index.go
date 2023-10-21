@@ -54,16 +54,16 @@ func (idx Index[D]) add(field, term, docID string, cnt int) {
 	}
 
 	idx.InvIndex[field][term][docID] += cnt
-
 	idx.TermFreq[field][term] += cnt
 }
 
 // add adds documents to the index.
 func (idx Index[D]) Add(doc D) {
 	for fieldName, field := range doc.Fields() {
-		for _, token := range analyze(field.Content) {
-			idx.add(fieldName, token.Term, doc.ID(), 1)
-		}
+		analyze(field.Content)(func(term Term) bool {
+			idx.add(fieldName, term.Term, doc.ID(), 1)
+			return true
+		})
 		for _, term := range field.Terms {
 			idx.add(fieldName, term, doc.ID(), 1)
 		}
@@ -93,7 +93,7 @@ func (idx Index[D]) Search(query string, tags []string) []Hit[D] {
 	scores := map[string]float64{}
 	docTags := map[string][]string{}
 
-	queryTokens := analyze(query)
+	queryTokens := analyze(query).ToSlice()
 	for fieldName, field := range func() D {
 		var d D
 		return d

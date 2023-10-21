@@ -176,12 +176,7 @@ func (app *App) getNote(title string) (Note, error) {
 		return Note{}, ErrNotFound
 	}
 
-	// if !isValidTitle(title) {
-	// 	return Note{}, ErrTitleInvalid
-	// }
-
 	return Note{
-		// Title:    strings.TrimSpace(title),
 		Title:    title,
 		NotesDir: app.Dir,
 	}, nil
@@ -209,7 +204,6 @@ func (app *App) getNotes() ([]Note, error) {
 }
 
 // Synchronize the index with the notes directory.
-// Specify clean=True to completely rebuild the index
 func (app *App) updateIndex() error {
 	indexed := Set[string]{}
 	for id, doc := range app.Index.Documents {
@@ -246,13 +240,15 @@ func (app *App) updateIndex() error {
 	}
 
 	for _, note := range notes {
-		if !indexed.Has(note.Title) {
-			if err := app.addNoteToIndex(note); err != nil {
-				return fmt.Errorf("add note %q to index: %w", note.Title, err)
-			}
-
-			log.Printf("%q added to index\n", note.Title)
+		if indexed.Has(note.Title) {
+			continue
 		}
+
+		if err := app.addNoteToIndex(note); err != nil {
+			return fmt.Errorf("add note %q to index: %w", note.Title, err)
+		}
+
+		log.Printf("%q added to index\n", note.Title)
 	}
 	return nil
 }
