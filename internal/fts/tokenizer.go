@@ -3,6 +3,7 @@ package fts
 import (
 	"unicode"
 
+	snowballeng "github.com/kljensen/snowball/english"
 	"github.com/rprtr258/fun/iter"
 )
 
@@ -64,8 +65,10 @@ func tokenize(s string) iter.Seq[Term] {
 
 // analyze analyzes the text and returns a slice of tokens.
 func analyze(text string) iter.Seq[Term] {
-	terms := tokenize(text)
-	terms = lowercaseFilter(terms)
-	terms = stemmerFilter(terms)
-	return terms
+	return tokenize(text).
+		Map(func(term Term) Term {
+			// stemmed tokens
+			term.Term = snowballeng.Stem(term.Term, false)
+			return term
+		})
 }
