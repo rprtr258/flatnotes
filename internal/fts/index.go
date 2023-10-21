@@ -83,7 +83,7 @@ type Hit[D Document] struct {
 
 // search queries the index for the given text.
 func (idx Index[D]) Search(query string, tags []string) []Hit[D] {
-	var tagDocIDs map[string]float64
+	tagDocIDs := map[string]float64{}
 
 	for id, doc := range idx.Documents {
 		if len(lo.Intersect(strings.Split(doc.Fields()["Tags"], " "), tags)) > 0 {
