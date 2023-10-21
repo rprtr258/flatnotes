@@ -208,13 +208,15 @@ func setupApp(app *fiber.App, config internal.Config, flatnotes internal.App) {
 		return c.JSON(res)
 	})
 
-	if os.Getenv("DEBUG") != "" {
-		app.Get("/api/debug/config", func(c *fiber.Ctx) error {
-			return c.JSON(internal.ConfigModel{
-				AuthType: config.AuthType,
-			})
+	// TODO: move config to debug
+	// TODO: hardcode auth type in frontend
+	app.Get("/api/config", func(c *fiber.Ctx) error {
+		return c.JSON(internal.ConfigModel{
+			AuthType: config.AuthType,
 		})
+	})
 
+	if os.Getenv("DEBUG") != "" {
 		app.Get("/api/debug/index", func(c *fiber.Ctx) error {
 			return c.JSON(flatnotes.Index)
 		})
