@@ -1,12 +1,13 @@
 package internal
 
 import (
+	"cmp"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/samber/lo"
@@ -325,8 +326,12 @@ func (app *App) Search(
 		)
 	}
 
-	sort.Slice(hits, func(i, j int) bool {
-		return hits[i].Doc.Modtime.After(hits[j].Doc.Modtime)
+	slices.SortFunc(hits, func(i, j fts.Hit[NoteDocument]) int {
+		if i.Score != j.Score {
+			return cmp.Compare(j.Score, i.Score)
+		}
+
+		return cmp.Compare(i.Doc.Modtime.Unix(), j.Doc.Modtime.Unix())
 	})
 
 	if limit > 0 {

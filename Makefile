@@ -14,3 +14,8 @@ watch:
 .PHONY: l2
 l2:
 	jsonnet --string --multi l2/ l2/l2.jsonnet
+
+.PHONY: frontend
+frontend:
+	npm install
+	npm run build

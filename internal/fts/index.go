@@ -83,13 +83,11 @@ type Hit[D Document] struct {
 
 // search queries the index for the given text.
 func (idx Index[D]) Search(query string, tags []string) []Hit[D] {
-	var tagDocIDs []string
+	var tagDocIDs map[string]float64
 
 	for id, doc := range idx.Documents {
 		if len(lo.Intersect(strings.Split(doc.Fields()["Tags"], " "), tags)) > 0 {
-			if !lo.Contains(tagDocIDs, id) {
-				tagDocIDs = append(tagDocIDs, id)
-			}
+			tagDocIDs[id]++
 		}
 	}
 
@@ -118,14 +116,12 @@ func (idx Index[D]) Search(query string, tags []string) []Hit[D] {
 		// }
 	}
 	for _, id := range docIDs {
-		if !lo.Contains(tagDocIDs, id) {
-			tagDocIDs = append(tagDocIDs, id)
-		}
+		tagDocIDs[id]++
 	}
 
-	return lo.Map(tagDocIDs, func(id string, _ int) Hit[D] {
+	return lo.MapToSlice(tagDocIDs, func(id string, score float64) Hit[D] {
 		return Hit[D]{
-			Score: 0,
+			Score: score,
 			Doc:   idx.Documents[id],
 			Terms: queryTokens,
 		}
