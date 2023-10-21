@@ -331,7 +331,7 @@ func (app *App) Search(
 			return cmp.Compare(j.Score, i.Score)
 		}
 
-		return cmp.Compare(i.Doc.Modtime.Unix(), j.Doc.Modtime.Unix())
+		return cmp.Compare(j.Doc.Modtime.Unix(), i.Doc.Modtime.Unix())
 	})
 
 	if limit > 0 {
