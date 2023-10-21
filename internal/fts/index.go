@@ -26,27 +26,34 @@ type Index[D Document] struct {
 }
 
 func NewIndex[D Document]() *Index[D] {
+	InvIndex := map[string]map[string]map[string]int{}
+	TermFreq := map[string]map[string]int{}
+	for field := range func() D {
+		var d D
+		return d
+	}().Fields() {
+		if _, ok := InvIndex[field]; !ok {
+			InvIndex[field] = map[string]map[string]int{}
+		}
+
+		if _, ok := TermFreq[field]; !ok {
+			TermFreq[field] = map[string]int{}
+		}
+	}
+
 	return &Index[D]{
-		InvIndex:  map[string]map[string]map[string]int{},
+		InvIndex:  InvIndex,
 		Documents: map[string]D{},
-		TermFreq:  map[string]map[string]int{},
+		TermFreq:  TermFreq,
 	}
 }
 
 func (idx Index[D]) add(field, term, docID string, cnt int) {
-	if _, ok := idx.InvIndex[field]; !ok {
-		idx.InvIndex[field] = map[string]map[string]int{}
-	}
-
 	if _, ok := idx.InvIndex[field][term]; !ok {
 		idx.InvIndex[field][term] = map[string]int{}
 	}
 
 	idx.InvIndex[field][term][docID] += cnt
-
-	if _, ok := idx.TermFreq[field]; !ok {
-		idx.TermFreq[field] = map[string]int{}
-	}
 
 	idx.TermFreq[field][term] += cnt
 }

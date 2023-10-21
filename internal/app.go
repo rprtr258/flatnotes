@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/samber/lo"
 
@@ -84,9 +85,12 @@ func New(dir string) (App, error) {
 	}
 
 	// for now loaded from fs on startup
+	start := time.Now()
+	log.Println("started initial indexing")
 	if err := res.updateIndex(); err != nil {
 		return App{}, fmt.Errorf("update index: %w", err)
 	}
+	log.Println("finished initial indexing in", time.Since(start))
 
 	return res, nil
 }
