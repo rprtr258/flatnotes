@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/samber/lo"
@@ -156,20 +157,6 @@ func (app *App) newSearchResult(hit fts.Hit[NoteDocument]) (SearchResult, error)
 	}, nil
 }
 
-// Load the note index or create new if not exists.
-// Add a Note object to the index using the given writer. If the
-// filename already exists in the index an update will be performed
-// instead.
-func (app *App) addNoteToIndex(note Note) error {
-	doc, err := toDocument(note)
-	if err != nil {
-		return fmt.Errorf("get document: %w", err)
-	}
-
-	app.Index.Add(doc)
-	return nil
-}
-
 func (app *App) getNote(title string) (Note, error) {
 	filepath := noteFilepath(app.Dir, title)
 	if !ospathexists(filepath) {
@@ -205,6 +192,25 @@ func (app *App) getNotes() ([]Note, error) {
 
 // Synchronize the index with the notes directory.
 func (app *App) updateIndex() error {
+	adder, close := app.Index.Add()
+	var wg sync.WaitGroup
+	defer func() {
+		wg.Wait()
+		close()
+	}()
+	add := func(note Note) {
+		wg.Add(1)
+		go func() {
+			doc, _ := toDocument(note)
+			// if err != nil {
+			// 	return fmt.Errorf("get document, %q: %w", note.Title, err)
+			// }
+
+			adder <- doc
+			wg.Done()
+		}()
+	}
+
 	indexed := Set[string]{}
 	for id, doc := range app.Index.Documents {
 		idxFilename := id + _markdownExt
@@ -219,9 +225,7 @@ func (app *App) updateIndex() error {
 				return fmt.Errorf("get note %q: %w", id, err)
 			}
 
-			if err := app.addNoteToIndex(note); err != nil {
-				return fmt.Errorf("add note %q to index: %w", id, err)
-			}
+			add(note)
 
 			// Update modified
 			log.Println(id, "updated")
@@ -244,9 +248,7 @@ func (app *App) updateIndex() error {
 			continue
 		}
 
-		if err := app.addNoteToIndex(note); err != nil {
-			return fmt.Errorf("add note %q to index: %w", note.Title, err)
-		}
+		add(note)
 
 		log.Printf("%q added to index\n", note.Title)
 	}

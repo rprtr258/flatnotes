@@ -58,17 +58,25 @@ func (idx Index[D]) add(field, term, docID string, cnt int) {
 }
 
 // add adds documents to the index.
-func (idx Index[D]) Add(doc D) {
-	for fieldName, field := range doc.Fields() {
-		analyze(field.Content)(func(term Term) bool {
-			idx.add(fieldName, term.Term, doc.ID(), 1)
-			return true
-		})
-		for _, term := range field.Terms {
-			idx.add(fieldName, term, doc.ID(), 1)
+func (idx Index[D]) Add() (chan<- D, func()) {
+	res := make(chan D)
+	go func() {
+		for doc := range res {
+			for fieldName, field := range doc.Fields() {
+				analyze(field.Content)(func(term Term) bool {
+					idx.add(fieldName, term.Term, doc.ID(), 1)
+					return true
+				})
+				for _, term := range field.Terms {
+					idx.add(fieldName, term, doc.ID(), 1)
+				}
+			}
+			idx.Documents[doc.ID()] = doc
 		}
+	}()
+	return res, func() {
+		close(res)
 	}
-	idx.Documents[doc.ID()] = doc
 }
 
 func (idx Index[D]) Remove(id string) {
