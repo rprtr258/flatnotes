@@ -79,15 +79,19 @@ type Hit[D Document] struct {
 	Doc   D
 	Score float64
 	Terms []Term
+	Tags  []string
 }
 
 // search queries the index for the given text.
 func (idx Index[D]) Search(query string, tags []string) []Hit[D] {
 	tagDocIDs := map[string]float64{}
+	docTags := map[string][]string{}
 
 	for id, doc := range idx.Documents {
-		if len(lo.Intersect(strings.Split(doc.Fields()["Tags"], " "), tags)) > 0 {
+		tgs := lo.Intersect(strings.Split(doc.Fields()["Tags"], " "), tags)
+		if len(tgs) > 0 {
 			tagDocIDs[id]++
+			docTags[id] = tgs
 		}
 	}
 
@@ -124,6 +128,7 @@ func (idx Index[D]) Search(query string, tags []string) []Hit[D] {
 			Score: score,
 			Doc:   idx.Documents[id],
 			Terms: queryTokens,
+			Tags:  docTags[id],
 		}
 	})
 }

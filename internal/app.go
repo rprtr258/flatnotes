@@ -93,8 +93,9 @@ func New(dir string) (App, error) {
 
 type SearchResult struct {
 	Note
-	Score                                          float64
-	TitleHighlights, ContentHighlights, TagMatches string
+	Score                              float64
+	TitleHighlights, ContentHighlights string
+	TagMatches                         []string
 }
 
 func (app *App) newSearchResult(hit fts.Hit[NoteDocument]) (SearchResult, error) {
@@ -107,7 +108,7 @@ func (app *App) newSearchResult(hit fts.Hit[NoteDocument]) (SearchResult, error)
 	// value of that field. This isn't useful so only set _score if it
 	// is a float.
 
-	var titleHighlights, contentHighlights, tagMatches string
+	var titleHighlights, contentHighlights string
 	for _, field := range hit.Terms {
 		re := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(field.Term))
 		// switch k {
@@ -143,7 +144,7 @@ func (app *App) newSearchResult(hit fts.Hit[NoteDocument]) (SearchResult, error)
 		Score:             hit.Score,
 		TitleHighlights:   postProcessHighlight(titleHighlights),
 		ContentHighlights: postProcessHighlight(contentHighlights),
-		TagMatches:        postProcessHighlight(tagMatches),
+		TagMatches:        hit.Tags,
 	}, nil
 }
 
@@ -362,7 +363,7 @@ func (app *App) Search(
 			LastModified:      modtime.Unix(),
 			TitleHighlights:   toOption(searchRes.TitleHighlights),
 			ContentHighlights: toOption(searchRes.ContentHighlights),
-			TagMatches:        toOption(searchRes.TagMatches),
+			TagMatches:        searchRes.TagMatches,
 		})
 	}
 	return res, nil

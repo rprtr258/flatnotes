@@ -32,14 +32,14 @@ export default {
 
   computed: {
     sortByIsGrouped: function () {
-      return this.sortBy == this.sortOptions.title;
+      return this.sortBy == constants.searchSortOptions.title;
     },
 
     resultsGrouped: function () {
       switch (this.sortBy) {
-      case this.sortOptions.title:
+      case constants.searchSortOptions.title:
         return this.resultsByTitle();
-      case this.sortOptions.lastModified:
+      case constants.searchSortOptions.lastModified:
         return this.resultsByLastModified();
       default:
         return this.resultsByScore();
@@ -90,7 +90,7 @@ export default {
             });
           }
         })
-        .catch(function (error) {
+        .catch((error) => {
           if (!error.handled) {
             parent.searchFailed = true;
             EventBus.$emit("unhandledServerError");
@@ -102,12 +102,7 @@ export default {
       return [
         {
           name: "_",
-          searchResults: [...this.searchResults].sort(function (
-            searchResultA,
-            searchResultB
-          ) {
-            return searchResultB.score - searchResultA.score;
-          }),
+          searchResults: [...this.searchResults].sort((i, j) => j.score - i.score),
         },
       ];
     },
@@ -193,7 +188,6 @@ export default {
   },
 
   created: function () {
-    this.sortOptions = constants.searchSortOptions;
     this.init();
   },
 };
@@ -214,10 +208,7 @@ export default {
         :failedBootstrapIcon="searchFailedIcon"
         :failedMessage="searchFailedMessage"
       />
-    </div>
-
-    <!-- Search Results Loaded -->
-    <div v-else>
+    </div> <div v-else> <!-- Search Results Loaded -->
       <!-- Controls -->
       <div class="mb-3">
         <select v-model="sortBy" class="bttn sort-select">
@@ -255,6 +246,7 @@ export default {
           class="bttn result"
           :class="{ 'mb-3': searchResultsIncludeHighlights && showHighlights }"
         >
+          <p>{{result.score}}</p>
           <a :href="result.href" @click.prevent="openNote(result.href, $event)">
             <div class="d-flex justify-content-between">
               <p

@@ -45,12 +45,12 @@ type NotePatchModel struct {
 }
 
 type SearchResultModel struct {
-	Score             float64 `json:"score"`
-	Title             string  `json:"title"`
-	LastModified      int64   `json:"lastModified"`
-	TitleHighlights   *string `json:"titleHighlights"`
-	ContentHighlights *string `json:"contentHighlights"`
-	TagMatches        *string `json:"tagMatches"`
+	Score             float64  `json:"score"`
+	Title             string   `json:"title"`
+	LastModified      int64    `json:"lastModified"`
+	TitleHighlights   *string  `json:"titleHighlights"`
+	ContentHighlights *string  `json:"contentHighlights"`
+	TagMatches        []string `json:"tagMatches"`
 }
 
 type ConfigModel struct {

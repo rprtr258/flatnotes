@@ -38,7 +38,12 @@ func setupApp(app *fiber.App, config internal.Config, flatnotes internal.App) {
 	}
 	if config.AuthType != internal.AuthTypeNone && config.AuthType != internal.AuthTypeReadOnly {
 		authenticate = func(c *fiber.Ctx) error {
-			token, ok := strings.CutPrefix(c.GetReqHeaders()["Authorization"], "Bearer ")
+			authorizationHeaders := c.GetReqHeaders()[fiber.HeaderAuthorization]
+			if len(authorizationHeaders) != 1 {
+				return fiber.NewError(fiber.StatusUnauthorized, "missing Authorization header")
+			}
+
+			token, ok := strings.CutPrefix(authorizationHeaders[0], "Bearer ")
 			if !ok {
 				return fiber.NewError(fiber.StatusUnauthorized, "invalid token in Authorization header")
 			}
