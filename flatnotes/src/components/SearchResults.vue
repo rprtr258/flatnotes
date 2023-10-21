@@ -246,7 +246,7 @@ export default {
           class="bttn result"
           :class="{ 'mb-3': searchResultsIncludeHighlights && showHighlights }"
         >
-          <p>{{result.score}}</p>
+          <p>{{result.score.toFixed(5)}}</p>
           <a :href="result.href" @click.prevent="openNote(result.href, $event)">
             <div class="d-flex justify-content-between">
               <p

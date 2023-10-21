@@ -13,16 +13,19 @@ type Document interface {
 
 // Index is an inverted Index. It maps tokens to document IDs.
 type Index[D Document] struct {
-	// Term -> Document IDs
-	InvIndex map[string][]string
+	// Term -> Document ID -> Term count in document
+	InvIndex map[string]map[string]int
 	// all Documents
 	Documents map[string]D
+	// Term -> Term frequency among all documents
+	TermFreq map[string]int
 }
 
 func NewIndex[D Document]() *Index[D] {
 	return &Index[D]{
-		InvIndex:  map[string][]string{},
+		InvIndex:  map[string]map[string]int{},
 		Documents: map[string]D{},
+		TermFreq:  map[string]int{},
 	}
 }
 
@@ -30,49 +33,22 @@ func NewIndex[D Document]() *Index[D] {
 func (idx Index[D]) Add(doc D) {
 	for _, text := range doc.Fields() {
 		for _, token := range analyze(text) {
-			if lo.Contains(idx.InvIndex[token.Term], doc.ID()) {
-				// Don't add same ID twice.
-				continue
+			if _, ok := idx.InvIndex[token.Term]; !ok {
+				idx.InvIndex[token.Term] = map[string]int{}
 			}
-			idx.InvIndex[token.Term] = append(idx.InvIndex[token.Term], doc.ID())
+			idx.InvIndex[token.Term][doc.ID()]++
+			idx.TermFreq[token.Term]++
 		}
 	}
 	idx.Documents[doc.ID()] = doc
 }
 
-// add adds documents to the index.
 func (idx Index[D]) Remove(id string) {
 	delete(idx.Documents, id)
-	for token, ids := range idx.InvIndex {
-		idx.InvIndex[token] = lo.Filter(
-			ids,
-			func(docID string, _ int) bool {
-				return docID == id
-			})
+	for term, docs := range idx.InvIndex {
+		idx.TermFreq[term] -= docs[id]
+		delete(docs, id)
 	}
-}
-
-// intersection returns the set intersection between a and b.
-// a and b have to be sorted in ascending order and contain no duplicates.
-func intersection(a, b []string) []string {
-	maxLen := len(a)
-	if len(b) > maxLen {
-		maxLen = len(b)
-	}
-	r := make([]string, 0, maxLen)
-	var i, j int
-	for i < len(a) && j < len(b) {
-		if a[i] < b[j] {
-			i++
-		} else if a[i] > b[j] {
-			j++
-		} else {
-			r = append(r, a[i])
-			i++
-			j++
-		}
-	}
-	return r
 }
 
 type Hit[D Document] struct {
@@ -84,29 +60,22 @@ type Hit[D Document] struct {
 
 // search queries the index for the given text.
 func (idx Index[D]) Search(query string, tags []string) []Hit[D] {
-	tagDocIDs := map[string]float64{}
+	tagScores := map[string]float64{}
+	scores := map[string]float64{}
 	docTags := map[string][]string{}
 
 	for id, doc := range idx.Documents {
 		tgs := lo.Intersect(strings.Split(doc.Fields()["Tags"], " "), tags)
 		if len(tgs) > 0 {
-			tagDocIDs[id]++
+			tagScores[id]++
 			docTags[id] = tgs
 		}
 	}
 
-	var docIDs []string
 	queryTokens := analyze(query)
 	for _, token := range queryTokens {
-		if ids, ok := idx.InvIndex[token.Term]; ok {
-			if docIDs == nil {
-				docIDs = ids
-			} else {
-				docIDs = intersection(docIDs, ids)
-			}
-		} else {
-			// Token doesn't exist.
-			return nil
+		for docID, cnt := range idx.InvIndex[token.Term] {
+			scores[docID] += float64(cnt) / float64(idx.TermFreq[token.Term])
 		}
 		// for term, ids := range idx.InvIndex { // stupidest fuzzy search in the world starts here
 		// 	if !strings.Contains(term, token.Term) {
@@ -119,13 +88,12 @@ func (idx Index[D]) Search(query string, tags []string) []Hit[D] {
 		// 	}
 		// }
 	}
-	for _, id := range docIDs {
-		tagDocIDs[id]++
-	}
 
-	return lo.MapToSlice(tagDocIDs, func(id string, score float64) Hit[D] {
+	allDocIDs := lo.Uniq(append(lo.Keys(scores), lo.Keys(tagScores)...))
+
+	return lo.Map(allDocIDs, func(id string, _ int) Hit[D] {
 		return Hit[D]{
-			Score: score,
+			Score: scores[id] + tagScores[id]*2, // TODO: title boost 2
 			Doc:   idx.Documents[id],
 			Terms: queryTokens,
 			Tags:  docTags[id],

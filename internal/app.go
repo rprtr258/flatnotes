@@ -110,7 +110,7 @@ func (app *App) newSearchResult(hit fts.Hit[NoteDocument]) (SearchResult, error)
 
 	var titleHighlights, contentHighlights string
 	for _, field := range hit.Terms {
-		re := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(field.Term))
+		re := regexp.MustCompile(`\b(?i)` + regexp.QuoteMeta(field.Term) + `\b`)
 		// switch k {
 		// case "Title":
 		// 	titleHighlights += strings.Join(field, "\n")
@@ -136,6 +136,10 @@ func (app *App) newSearchResult(hit fts.Hit[NoteDocument]) (SearchResult, error)
 			return strings.Contains(line, "<mark>")
 		})
 		lines = lo.Slice(lines, 0, 3)
+		for i, line := range lines {
+			j := strings.Index(line, "<mark>")
+			lines[i] = lo.Substring(line, j-100, 300)
+		}
 		return replacer.Replace(strings.Join(lines, "<br>"))
 	}
 
