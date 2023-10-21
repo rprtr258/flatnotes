@@ -71,7 +71,7 @@ export default {
       this.searchResultsIncludeHighlights = false;
       api
         .get("/api/search", { params: { term: this.searchTerm } })
-        .then(function (response) {
+        .then((response) => {
           parent.searchResults = [];
           if (response.data.length == 0) {
             parent.searchFailedIcon = "search";
