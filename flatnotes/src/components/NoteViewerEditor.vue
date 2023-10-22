@@ -541,7 +541,7 @@ export default {
   min-width: 300px;
   white-space: nowrap;
   text-overflow: ellipsis;
-  overflow: hidden;
+  overflow-x: hidden;
   color: var(--colour-text);
   margin: 0;
 }
