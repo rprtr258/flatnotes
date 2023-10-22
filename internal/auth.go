@@ -5,10 +5,6 @@ import (
 	"strings"
 	"time"
 
-	// from fastapi import Depends, HTTPException
-	// from fastapi.security import OAuth2PasswordBearer
-	// from jose import JWTError, jwt
-
 	"github.com/golang-jwt/jwt/v5"
 )
 
