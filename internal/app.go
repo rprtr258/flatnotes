@@ -30,7 +30,7 @@ var (
 // Return False if the declared title contains any of the following
 // characters: <>:"/\|?*
 func isValidTitle(title string) bool {
-	const _invalidChars = ` <>:"/\|?*` + "\n\r\t"
+	const _invalidChars = `<>:"/\|?*` + "\n\r\t"
 	return !strings.ContainsAny(title, _invalidChars)
 }
 
