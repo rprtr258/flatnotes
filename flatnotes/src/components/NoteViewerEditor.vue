@@ -539,6 +539,7 @@ export default {
 
 .title {
   min-width: 300px;
+  height: 1.5em;
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow-x: hidden;
