@@ -1,6 +1,8 @@
 package fts
 
 import (
+	"sync"
+
 	"github.com/samber/lo"
 )
 
@@ -17,6 +19,7 @@ type Document interface {
 
 // Index is an inverted Index. It maps tokens to document IDs.
 type Index[D Document] struct {
+	mu sync.RWMutex
 	// Field -> Term -> Document ID -> Term count in document field
 	InvIndex map[string]map[string]map[string]int
 	// all Documents
@@ -42,13 +45,14 @@ func NewIndex[D Document]() *Index[D] {
 	}
 
 	return &Index[D]{
+		mu:        sync.RWMutex{},
 		InvIndex:  InvIndex,
 		Documents: map[string]D{},
 		TermFreq:  TermFreq,
 	}
 }
 
-func (idx Index[D]) add(field, term, docID string, cnt int) {
+func (idx *Index[D]) add(field, term, docID string, cnt int) {
 	if _, ok := idx.InvIndex[field][term]; !ok {
 		idx.InvIndex[field][term] = map[string]int{}
 	}
@@ -58,7 +62,10 @@ func (idx Index[D]) add(field, term, docID string, cnt int) {
 }
 
 // add adds documents to the index.
-func (idx Index[D]) Add(docs ...D) {
+func (idx *Index[D]) Add(docs ...D) {
+	idx.mu.Lock()
+	defer idx.mu.Unlock()
+
 	for _, doc := range docs {
 		for fieldName, field := range doc.Fields() {
 			analyze(field.Content)(func(term Term) bool {
@@ -73,7 +80,10 @@ func (idx Index[D]) Add(docs ...D) {
 	}
 }
 
-func (idx Index[D]) Remove(id string) {
+func (idx *Index[D]) Remove(id string) {
+	idx.mu.Lock()
+	defer idx.mu.Unlock()
+
 	for field := range idx.Documents[id].Fields() {
 		for term, docs := range idx.InvIndex[field] {
 			idx.TermFreq[field][term] -= docs[id]
@@ -91,7 +101,10 @@ type Hit[D Document] struct {
 }
 
 // search queries the index for the given text.
-func (idx Index[D]) Search(query string, tags []string) []Hit[D] {
+func (idx *Index[D]) Search(query string, tags []string) []Hit[D] {
+	idx.mu.RLock()
+	defer idx.mu.RUnlock()
+
 	scores := map[string]float64{}
 	docTags := map[string][]string{}
 
