@@ -15,13 +15,6 @@ type Term struct {
 // tokenize returns a slice of tokens for the given text.
 func tokenize(s string) iter.Seq[Term] {
 	return func(yield func(Term) bool) bool {
-		// A span is used to record a slice of s of the form s[start:end].
-		// The start index is inclusive and the end index is exclusive.
-		type span struct {
-			start int
-			end   int
-		}
-
 		// Find the field start and end indices.
 		// Doing this in a separate pass (rather than slicing the string s
 		// and collecting the result substrings right away) is significantly
