@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -223,6 +224,7 @@ func setupApp(app *fiber.App, config internal.Config, flatnotes internal.App) {
 	}
 
 	app.Static("/", "./flatnotes/dist")
+	app.Static("/static", filepath.Join(config.DataPath, "static"))
 }
 
 func run(ctx context.Context) error {

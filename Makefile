@@ -9,6 +9,7 @@ run:
 
 .PHONY: watch
 watch:
+	# go install github.com/cespare/reflex@latest
 	reflex --start-service -r '\.go$$' -- go run ./cmd/main.go
 
 .PHONY: l2
