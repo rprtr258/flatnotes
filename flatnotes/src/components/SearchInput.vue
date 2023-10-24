@@ -53,6 +53,11 @@ export default {
     },
   },
 
+  mounted: function () {
+    this.$refs.input.focus();
+    this.$refs.input.select();
+  },
+
   created: function () {
     EventBus.$on("highlight-search-input", this.highlightSearchInput);
     this.init();
@@ -65,6 +70,7 @@ export default {
     <div class="input-group w-100">
       <input
         id="search-input"
+        ref="input"
         type="text"
         inputmode="search"
         class="form-control"
@@ -88,6 +94,7 @@ export default {
   from {
     background-color: var(--colour-background-highlight);
   }
+
   to {
     background-color: var(--colour-background-elevated);
   }
@@ -100,6 +107,7 @@ export default {
 
 .btn {
   border: 1px solid var(--colour-border);
+
   svg {
     color: var(--colour-text-muted);
   }
