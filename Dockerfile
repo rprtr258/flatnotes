@@ -2,7 +2,7 @@ FROM golang:1.20 AS build
 WORKDIR /build
 RUN apt update && \
   apt install -y npm
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .htmlnanorc ./
 RUN npm ci
 COPY flatnotes/src ./flatnotes/src
 RUN npm run build
