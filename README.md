@@ -89,7 +89,7 @@ services:
       FLATNOTES_SECRET_KEY: "aLongRandomSeriesOfCharacters"
     volumes:
       - "./data:/data"
-      # Optional. Allows you to save the search index in a different location: 
+      # Optional. Allows you to save the search index in a different location:
       # - "./index:/data/.flatnotes"
     ports:
       - "8080:8080"

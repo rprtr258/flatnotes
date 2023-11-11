@@ -1,7 +1,6 @@
 <script>
 import * as constants from "../constants";
 import * as helpers from "../helpers";
-
 import EventBus from "../eventBus";
 import Logo from "./Logo";
 import api from "../api";
@@ -40,15 +39,16 @@ export default {
 
     login: function () {
       let parent = this;
-      api
-        .post("/api/token", {
+      api("/api/token", {
+        body: {
           username: this.usernameInput,
           password: this.passwordInput + (this.authType == constants.authTypes.totp ? this.totpInput : ""),
-        })
+        },
+      })
         .then(function (response) {
-          sessionStorage.setItem("token", response.data.access_token);
+          sessionStorage.setItem("token", response.access_token);
           if (parent.rememberMeInput == true) {
-            localStorage.setItem("token", response.data.access_token);
+            localStorage.setItem("token", response.access_token);
           }
           let redirectPath = helpers.getSearchParam(constants.params.redirect);
           EventBus.$emit("navigate", redirectPath || constants.basePaths.home);
@@ -63,7 +63,7 @@ export default {
               toaster: "b-toaster-bottom-right",
             });
           } else {
-            EventBus.$emit("unhandledServerError");
+            EventBus.$emit("unhandledServerError", error);
           }
         })
         .finally(function () {

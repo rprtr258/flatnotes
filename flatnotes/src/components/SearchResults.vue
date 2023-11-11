@@ -69,16 +69,19 @@ export default {
       let parent = this;
       this.searchFailed = false;
       this.searchResultsIncludeHighlights = false;
-      api
-        .get("/api/search", { params: { term: this.searchTerm } })
+      api("/api/search", {
+        params: {
+          term: this.searchTerm,
+        },
+      })
         .then((response) => {
           parent.searchResults = [];
-          if (response.data.length == 0) {
+          if (response.length == 0) {
             parent.searchFailedIcon = "search";
             parent.searchFailedMessage = "No Results";
             parent.searchFailed = true;
           } else {
-            response.data.forEach(function (responseItem) {
+            response.forEach(function (responseItem) {
               let searchResult = new SearchResult(responseItem);
               parent.searchResults.push(searchResult);
               if (
@@ -93,7 +96,7 @@ export default {
         .catch((error) => {
           if (!error.handled) {
             parent.searchFailed = true;
-            EventBus.$emit("unhandledServerError");
+            EventBus.$emit("unhandledServerError", error);
           }
         });
     },

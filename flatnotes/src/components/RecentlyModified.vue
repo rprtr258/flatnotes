@@ -27,8 +27,7 @@ export default {
     getNotes: function () {
       let parent = this;
       this.loadingFailed = false;
-      api
-        .get("/api/search", {
+      api("/api/search", {
           params: {
             term: "*",
             sort: "lastModified",
@@ -38,8 +37,8 @@ export default {
         })
         .then(function (response) {
           parent.notes = [];
-          if (response.data.length) {
-            response.data.forEach(function (searchResult) {
+          if (response.length) {
+            response.forEach(function (searchResult) {
               parent.notes.push(new SearchResult(searchResult));
             });
           } else {
@@ -51,7 +50,7 @@ export default {
         .catch(function (error) {
           parent.loadingFailed = true;
           if (!error.handled) {
-            EventBus.$emit("unhandledServerError");
+            EventBus.$emit("unhandledServerError", error);
           }
         });
     },
@@ -59,12 +58,11 @@ export default {
     getTags: function () {
       let parent = this;
       this.loadingFailed = false;
-      api
-        .get("/api/tags")
+      api("/api/tags")
         .then(function (response) {
           parent.tags = [];
-          if (response.data.length) {
-            response.data.forEach(function (tag) {
+          if (response.length) {
+            response.forEach(function (tag) {
               parent.tags.push(tag);
             });
           } else {
@@ -76,7 +74,7 @@ export default {
         .catch(function (error) {
           parent.loadingFailed = true;
           if (!error.handled) {
-            EventBus.$emit("unhandledServerError");
+            EventBus.$emit("unhandledServerError", error);
           }
         });
     },

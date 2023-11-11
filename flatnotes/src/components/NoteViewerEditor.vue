@@ -84,13 +84,12 @@ export default {
     loadNote: function (title) {
       let parent = this;
       this.noteLoadFailed = false;
-      api
-        .get(`/api/notes/${encodeURIComponent(title)}`)
+      api(`/api/notes/${encodeURIComponent(title)}`)
         .then(function (response) {
           parent.currentNote = new Note(
-            response.data.title,
-            response.data.lastModified,
-            response.data.content
+            response.title,
+            response.lastModified,
+            response.content
           );
           // EventBus.$emit("updateDocumentTitle", parent.currentNote.title);
         })
@@ -105,7 +104,7 @@ export default {
             parent.noteLoadFailedMessage = "Note not found";
             parent.noteLoadFailed = true;
           } else {
-            EventBus.$emit("unhandledServerError");
+            EventBus.$emit("unhandledServerError", error);
             parent.noteLoadFailed = true;
           }
         });
@@ -265,11 +264,12 @@ export default {
       }
 
       if (this.currentNote.lastModified == null) { // New Note
-        api
-          .post(`/api/notes`, {
+        api(`/api/notes`, {
+          body: {
             title: this.titleInput,
             content: newContent,
-          })
+          },
+        })
           .then(this.saveNoteResponseHandler)
           .catch(function (error) {
             if (error.handled) {
@@ -280,15 +280,17 @@ export default {
             ) {
               parent.existingTitleToast();
             } else {
-              EventBus.$emit("unhandledServerError");
+              EventBus.$emit("unhandledServerError", error);
             }
           });
       } else if (newContent != this.currentNote.content || this.titleInput != this.currentNote.title) { // Modified Note
-        api
-          .patch(`/api/notes/${encodeURIComponent(this.currentNote.title)}`, {
+        api(`/api/notes/${encodeURIComponent(this.currentNote.title)}`, {
+          method: "PATCH",
+          body: {
             newTitle: this.titleInput,
             newContent: newContent,
-          })
+          },
+        })
           .then(this.saveNoteResponseHandler)
           .catch(function (error) {
             if (error.handled) {
@@ -299,7 +301,7 @@ export default {
             ) {
               parent.existingTitleToast();
             } else {
-              EventBus.$emit("unhandledServerError");
+              EventBus.$emit("unhandledServerError", error);
             }
           });
       } else { // No Change
@@ -312,9 +314,9 @@ export default {
     saveNoteResponseHandler: function (response) {
       localStorage.removeItem(this.currentNote.title);
       this.currentNote = new Note(
-        response.data.title,
-        response.data.lastModified,
-        response.data.content
+        response.title,
+        response.lastModified,
+        response.content
       );
       EventBus.$emit("updateNoteTitle", this.currentNote.title);
       history.replaceState(null, "", this.currentNote.href);
@@ -381,17 +383,16 @@ export default {
         )
         .then(function (response) {
           if (response == true) {
-            api
-              .delete(
-                `/api/notes/${encodeURIComponent(parent.currentNote.title)}`
-              )
+            api(`/api/notes/${encodeURIComponent(parent.currentNote.title)}`, {
+              method: "DELETE",
+            })
               .then(function () {
                 parent.$emit("note-deleted");
                 EventBus.$emit("navigate", constants.basePaths.home);
               })
               .catch(function (error) {
                 if (!error.handled) {
-                  EventBus.$emit("unhandledServerError");
+                  EventBus.$emit("unhandledServerError", error);
                 }
               });
           }
@@ -535,7 +536,6 @@ export default {
 
 <style lang="scss" scoped>
 @import "../colours";
-@import "../mixins";
 
 .title {
   min-width: 300px;
@@ -569,21 +569,19 @@ export default {
 @import "@toast-ui/editor-plugin-code-syntax-highlight/dist/toastui-editor-plugin-code-syntax-highlight.css";
 
 @import "../colours";
-@import "../mixins";
 @import "../toastui-editor-theme.scss";
 
 .ProseMirror {
   font-family: "Inter", sans-serif;
 }
 
+@mixin note-padding {
+  padding: min(2vw, 30px) min(3vw, 40px);
+}
+
 .toastui-editor-contents {
   font-family: "Inter", sans-serif;
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
+  h1, h2, h3, h4, h5, h6 {
     border-bottom: none;
   }
   @include note-padding;

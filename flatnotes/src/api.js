@@ -1,40 +1,36 @@
-import axios from "axios";
-
 import * as constants from "./constants";
 import EventBus from "./eventBus";
 import { getToken } from "./tokenStorage";
 
-const api = axios.create();
+export default function api(path, options) {
+    const {body, params, method} = options || {};
 
-api.interceptors.request.use(
-  function(config) {
-    if (config.url !== "/api/token") {
-      const token = getToken();
-      config.headers.Authorization = `Bearer ${token}`;
+    if (params) {
+      path += "?" + new URLSearchParams(params);
     }
-    return config;
-  },
-  function(error) {
-    return Promise.reject(error);
-  }
-);
 
-api.interceptors.response.use(
-  function(response) {
-    return response;
-  },
-  function(error) {
-    if (typeof error.response !== "undefined" && error.response.status === 401) {
-      EventBus.$emit(
-        "navigate",
-        `${constants.basePaths.login}?${constants.params.redirect}=${encodeURI(
-          window.location.pathname + window.location.search
-        )}`
-      );
-      error.handled = true;
+    let fetch_options = {
+      method: method || (body ? "POST" : "GET"),
+      headers: (path !== "/api/token") ? {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${getToken()}`,
+      } : null,
+    };
+
+    if (body) {
+      fetch_options.body = JSON.stringify(body);
     }
-    return Promise.reject(error);
-  }
-);
 
-export default api;
+    return fetch(path, fetch_options).catch((error) => {
+      if (typeof error.response !== "undefined" && error.response.status === 401) {
+        EventBus.$emit(
+          "navigate",
+          `${constants.basePaths.login}?${constants.params.redirect}=${encodeURI(
+            window.location.pathname + window.location.search
+          )}`
+        );
+        error.handled = true;
+      }
+      return Promise.reject(error);
+    }).then((response) => response.json());
+}

@@ -57,14 +57,13 @@ export default {
   methods: {
     loadConfig: function () {
       let parent = this;
-      api
-        .get("/api/config")
-        .then(function (response) {
-          parent.authType = response.data.authType;
+      api("/api/config")
+        .then(function(response) {
+          parent.authType = response.authType;
         })
-        .catch(function (error) {
+        .catch(function(error) {
           if (!error.handled) {
-            parent.unhandledServerErrorToast();
+            parent.unhandledServerErrorToast(error);
           }
         });
     },
@@ -139,7 +138,8 @@ export default {
       }
     },
 
-    unhandledServerErrorToast: function () {
+    unhandledServerErrorToast: function (error) {
+      console.log(error);
       this.$bvToast.toast(
         "Unknown error communicating with the server. Please try again.",
         {
