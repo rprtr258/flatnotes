@@ -1,7 +1,3 @@
-import * as constants from "../constants";
-import * as helpers from "../helpers";
-
-import EventBus from "../eventBus";
 import LoadingIndicator from "./LoadingIndicator";
 import Login from "./Login";
 import Logo from "./Logo";
@@ -11,6 +7,11 @@ import NoteViewerEditor from "./NoteViewerEditor";
 import RecentlyModified from "./RecentlyModified";
 import SearchInput from "./SearchInput";
 import SearchResults from "./SearchResults";
+
+import * as constants from "../constants";
+import * as helpers from "../helpers";
+import { clearToken, loadToken } from "../tokenStorage";
+import EventBus from "../eventBus";
 import api from "../api";
 
 export default {
@@ -111,8 +112,7 @@ export default {
     },
 
     logout: function () {
-      sessionStorage.removeItem("token");
-      localStorage.removeItem("token");
+      clearToken();
       this.navigate(constants.basePaths.login);
     },
 
@@ -178,10 +178,7 @@ export default {
 
     this.loadConfig();
 
-    let token = localStorage.getItem("token");
-    if (token != null) {
-      sessionStorage.setItem("token", token);
-    }
+    loadToken();
 
     let darkTheme = localStorage.getItem("darkTheme");
     if (darkTheme != null) {

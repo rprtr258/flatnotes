@@ -1,14 +1,15 @@
-import * as constants from "./constants";
-
-import EventBus from "./eventBus";
 import axios from "axios";
+
+import * as constants from "./constants";
+import EventBus from "./eventBus";
+import { getToken } from "./tokenStorage";
 
 const api = axios.create();
 
 api.interceptors.request.use(
   function(config) {
     if (config.url !== "/api/token") {
-      let token = sessionStorage.getItem("token");
+      const token = getToken();
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;

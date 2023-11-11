@@ -10,7 +10,7 @@ export function getSearchParamBool(paramName, defaultValue = null) {
     return defaultValue
   }
   let paramValueLowerCase = paramValue.toLowerCase();
-  switch (paramValueLowerCase ) {
+  switch (paramValueLowerCase) {
     case "true":
       return true
     case "false":
