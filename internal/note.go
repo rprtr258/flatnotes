@@ -75,21 +75,21 @@ func createNote(dir, title, content string) (Note, time.Time, error) {
 
 	filepath := noteFilepath(dir, note.Title)
 
-	f, err := os.Create(filepath)
+	noteFile, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
 	if err != nil {
 		if os.IsExist(err) {
-			return Note{}, time.Time{}, fmt.Errorf("file exists: %q", filepath)
+			return Note{}, time.Time{}, ErrTitleExists
 		}
 
 		return Note{}, time.Time{}, err
 	}
-	defer f.Close()
+	defer noteFile.Close()
 
-	if _, err := f.Write([]byte(content)); err != nil {
+	if _, err := noteFile.Write([]byte(content)); err != nil {
 		return Note{}, time.Time{}, fmt.Errorf("write content: %w", err)
 	}
 
-	stat, err := f.Stat()
+	stat, err := noteFile.Stat()
 	if err != nil {
 		return Note{}, time.Time{}, fmt.Errorf("stat: %w", err)
 	}

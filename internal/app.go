@@ -373,7 +373,7 @@ func (app *App) Search(
 func (app *App) GetNote(title string, includeContent bool) (NoteContentResponseModel, error) {
 	note, err := app.getNote(title)
 	if err != nil {
-		return NoteContentResponseModel{}, fmt.Errorf("get note %q: %w", title, err)
+		return NoteContentResponseModel{}, err
 	}
 
 	modtime, err := note.LastModified()

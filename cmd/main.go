@@ -18,6 +18,24 @@ import (
 	"github.com/rprtr258/flatnotes/internal"
 )
 
+var (
+	responseTitleExists = func(c *fiber.Ctx) error {
+		return c.Status(fiber.StatusConflict).JSON(map[string]string{
+			"message": "Note with specified title already exists.",
+		})
+	}
+	responseTitleInvalid = func(c *fiber.Ctx) error {
+		return c.Status(fiber.StatusBadRequest).JSON(map[string]string{
+			"message": "Title contains invalid characters.",
+		})
+	}
+	responseNoteNotFound = func(c *fiber.Ctx) error {
+		return c.Status(fiber.StatusNotFound).JSON(map[string]string{
+			"message": "The note cannot be found.",
+		})
+	}
+)
+
 func setupApp(app *fiber.App, config internal.Config, flatnotes internal.App) {
 	// totp = (
 	//     pyotp.TOTP(config.totp_key) if config.auth_type == AuthType.TOTP else None
@@ -83,11 +101,14 @@ func setupApp(app *fiber.App, config internal.Config, flatnotes internal.App) {
 
 		res, err := flatnotes.GetNote(title, includeContent)
 		if err != nil {
-			return err
-			// except InvalidTitleError:
-			//     return invalid_title_response
-			// except FileNotFoundError:
-			//     return note_not_found_response
+			switch err {
+			case internal.ErrTitleInvalid:
+				return responseTitleInvalid(c)
+			case internal.ErrNotFound:
+				return responseNoteNotFound(c)
+			default:
+				return err
+			}
 		}
 
 		return c.JSON(res)
@@ -121,11 +142,14 @@ func setupApp(app *fiber.App, config internal.Config, flatnotes internal.App) {
 
 			res, err := flatnotes.CreateNote(data)
 			if err != nil {
-				// except InvalidTitleError:
-				//     return invalid_title_response
-				// except FileExistsError:
-				//     return title_exists_response
-				return err
+				switch err {
+				case internal.ErrTitleInvalid:
+					return responseTitleInvalid(c)
+				case internal.ErrTitleExists:
+					return responseTitleExists(c)
+				default:
+					return err
+				}
 			}
 
 			return c.JSON(res)
