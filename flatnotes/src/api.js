@@ -11,15 +11,12 @@ export default function api(path, options) {
 
     let fetch_options = {
       method: method || (body ? "POST" : "GET"),
-      headers: (path !== "/api/token") ? {
+      headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${getToken()}`,
-      } : null,
+        "Authorization": (path !== "/api/token") ? `Bearer ${getToken()}` : undefined,
+      },
+      body: body ? JSON.stringify(body) : undefined,
     };
-
-    if (body) {
-      fetch_options.body = JSON.stringify(body);
-    }
 
     return fetch(path, fetch_options).catch((error) => {
       if (typeof error.response !== "undefined" && error.response.status === 401) {
