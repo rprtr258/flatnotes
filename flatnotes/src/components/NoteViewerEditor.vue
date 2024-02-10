@@ -1,12 +1,9 @@
 <script>
 import * as constants from "../constants";
 
-import { Editor } from "@toast-ui/vue-editor";
 import EventBus from "../eventBus";
-import LoadingIndicator from "./LoadingIndicator";
 import Mousetrap from "mousetrap";
 import { Note } from "../classes";
-import { Viewer } from "@toast-ui/vue-editor";
 import api from "../api";
 import codeSyntaxHighlight from "@toast-ui/editor-plugin-code-syntax-highlight/dist/toastui-editor-plugin-code-syntax-highlight-all.js";
 
@@ -31,18 +28,12 @@ const customHTMLRenderer = {
 };
 
 export default {
-  components: {
-    Viewer,
-    Editor,
-    LoadingIndicator,
-  },
-
   props: {
     titleToLoad: { type: String, default: null },
     authType: { type: String, default: null },
   },
 
-  data: function () {
+  data() {
     return {
       editMode: false,
       draftSaveTimeout: null,
@@ -64,16 +55,8 @@ export default {
     };
   },
 
-  computed: {
-    canModify: function () {
-      return (
-        this.authType != null && this.authType != constants.authTypes.readOnly
-      );
-    },
-  },
-
   watch: {
-    titleToLoad: function () {
+    titleToLoad() {
       if (this.titleToLoad !== this.currentNote?.title) {
         this.init();
       }
@@ -81,36 +64,35 @@ export default {
   },
 
   methods: {
-    loadNote: function (title) {
-      let parent = this;
+    loadNote(title) {
       this.noteLoadFailed = false;
       api(`/api/notes/${encodeURIComponent(title)}`)
-        .then(function (response) {
-          parent.currentNote = new Note(
+        .then((response) => {
+          this.currentNote = Note(
             response.title,
             response.lastModified,
             response.content
           );
-          // EventBus.$emit("updateDocumentTitle", parent.currentNote.title);
+          // EventBus.$emit("updateDocumentTitle", this.currentNote.title);
         })
-        .catch(function (error) {
+        .catch((error) => {
           if (error.handled) {
             return;
           } else if (
             typeof error.response !== "undefined" &&
             error.response.status == 404
           ) {
-            parent.noteLoadFailedIcon = "file-earmark-x";
-            parent.noteLoadFailedMessage = "Note not found";
-            parent.noteLoadFailed = true;
+            this.noteLoadFailedIcon = "file-earmark-x";
+            this.noteLoadFailedMessage = "Note not found";
+            this.noteLoadFailed = true;
           } else {
             EventBus.$emit("unhandledServerError", error);
-            parent.noteLoadFailed = true;
+            this.noteLoadFailed = true;
           }
         });
     },
 
-    getContentForEditor: function () {
+    getContentForEditor() {
       let draftContent = localStorage.getItem(this.currentNote.title);
       if (draftContent) {
         if (confirm("Do you want to resume the saved draft?")) {
@@ -122,19 +104,15 @@ export default {
       return this.currentNote.content;
     },
 
-    setBeforeUnloadConfirmation: function (enable = true) {
+    setBeforeUnloadConfirmation(enable = true) {
       if (enable) {
-        window.onbeforeunload = function () {
-          return true;
-        };
+        window.onbeforeunload = () => true;
       } else {
         window.onbeforeunload = null;
       }
     },
 
-    setEditMode: function (editMode = true) {
-      let parent = this;
-
+    setEditMode(editMode = true) {
       // To Edit Mode
       if (editMode === true) {
         this.setBeforeUnloadConfirmation(true);
@@ -153,14 +131,14 @@ export default {
                 cancelVariant: "danger",
               }
             )
-            .then(function (response) {
+            .then((response) => {
               if (response == true) {
-                parent.initialContent = draftContent;
+                this.initialContent = draftContent;
               } else {
-                parent.initialContent = parent.currentNote.content;
-                localStorage.removeItem(parent.currentNote.title);
+                this.initialContent = this.currentNote.content;
+                localStorage.removeItem(this.currentNote.title);
               }
-              parent.editMode = true;
+              this.editMode = true;
             });
         } else {
           this.initialContent = this.currentNote.content;
@@ -176,7 +154,7 @@ export default {
       }
     },
 
-    getEditorContent: function () {
+    getEditorContent() {
       if (typeof this.$refs.toastUiEditor != "undefined") {
         return this.$refs.toastUiEditor.invoke("getMarkdown");
       } else {
@@ -184,7 +162,7 @@ export default {
       }
     },
 
-    saveDefaultEditorMode: function () {
+    saveDefaultEditorMode() {
       let isWysiwygMode = this.$refs.toastUiEditor.invoke("isWysiwygMode");
       localStorage.setItem(
         "defaultEditorMode",
@@ -192,7 +170,7 @@ export default {
       );
     },
 
-    loadDefaultEditorMode: function () {
+    loadDefaultEditorMode() {
       let defaultWysiwygMode = localStorage.getItem("defaultEditorMode");
       if (defaultWysiwygMode) {
         return defaultWysiwygMode;
@@ -201,25 +179,25 @@ export default {
       }
     },
 
-    clearDraftSaveTimeout: function () {
+    clearDraftSaveTimeout() {
       if (this.draftSaveTimeout != null) {
         clearTimeout(this.draftSaveTimeout);
       }
     },
 
-    startDraftSaveTimeout: function () {
+    startDraftSaveTimeout() {
       this.clearDraftSaveTimeout();
       this.draftSaveTimeout = setTimeout(this.saveDraft, 1000);
     },
 
-    saveDraft: function () {
+    saveDraft() {
       let content = this.getEditorContent();
       if (content) {
         localStorage.setItem(this.currentNote.title, content);
       }
     },
 
-    existingTitleToast: function () {
+    existingTitleToast() {
       this.$bvToast.toast(
         "A note with this title already exists. Please try again with a new title.",
         {
@@ -231,8 +209,7 @@ export default {
       );
     },
 
-    saveNote: function () {
-      let parent = this;
+    saveNote() {
       let newContent = this.getEditorContent();
 
       this.saveDefaultEditorMode();
@@ -271,14 +248,14 @@ export default {
           },
         })
           .then(this.saveNoteResponseHandler)
-          .catch(function (error) {
+          .catch((error) => {
             if (error.handled) {
               return;
             } else if (
               typeof error.response !== "undefined" &&
               error.response.status == 409
             ) {
-              parent.existingTitleToast();
+              this.existingTitleToast();
             } else {
               EventBus.$emit("unhandledServerError", error);
             }
@@ -292,14 +269,14 @@ export default {
           },
         })
           .then(this.saveNoteResponseHandler)
-          .catch(function (error) {
+          .catch((error) => {
             if (error.handled) {
               return;
             } else if (
               typeof error.response !== "undefined" &&
               error.response.status == 409
             ) {
-              parent.existingTitleToast();
+              this.existingTitleToast();
             } else {
               EventBus.$emit("unhandledServerError", error);
             }
@@ -311,7 +288,7 @@ export default {
       }
     },
 
-    saveNoteResponseHandler: function (response) {
+    saveNoteResponseHandler(response) {
       localStorage.removeItem(this.currentNote.title);
       this.currentNote = new Note(
         response.title,
@@ -324,7 +301,7 @@ export default {
       this.noteSavedToast();
     },
 
-    noteSavedToast: function () {
+    noteSavedToast() {
       this.$bvToast.toast("Note saved ✓", {
         variant: "success",
         noCloseButton: true,
@@ -332,7 +309,7 @@ export default {
       });
     },
 
-    cancelNote: function () {
+    cancelNote() {
       localStorage.removeItem(this.currentNote.title);
       if (this.currentNote.lastModified == null) {
         // Cancelling a new note
@@ -342,8 +319,7 @@ export default {
       }
     },
 
-    confirmCancelNote: function () {
-      let parent = this;
+    confirmCancelNote() {
       let newContent = this.getEditorContent();
       if (
         newContent != this.currentNote.content ||
@@ -359,9 +335,9 @@ export default {
               okVariant: "warning",
             }
           )
-          .then(function (response) {
+          .then((response) => {
             if (response == true) {
-              parent.cancelNote();
+              this.cancelNote();
             }
           });
       } else {
@@ -369,8 +345,7 @@ export default {
       }
     },
 
-    deleteNote: function () {
-      let parent = this;
+    deleteNote() {
       this.$bvModal
         .msgBoxConfirm(
           `Are you sure you want to delete the note '${this.currentNote.title}'?`,
@@ -381,25 +356,27 @@ export default {
             okVariant: "danger",
           }
         )
-        .then(function (response) {
-          if (response == true) {
-            api(`/api/notes/${encodeURIComponent(parent.currentNote.title)}`, {
-              method: "DELETE",
-            })
-              .then(function () {
-                parent.$emit("note-deleted");
-                EventBus.$emit("navigate", constants.basePaths.home);
-              })
-              .catch(function (error) {
-                if (!error.handled) {
-                  EventBus.$emit("unhandledServerError", error);
-                }
-              });
+        .then((response) => {
+          if (!response) {
+            return;
           }
+
+          api(`/api/notes/${encodeURIComponent(this.currentNote.title)}`, {
+            method: "DELETE",
+          })
+            .then(() => {
+              this.$emit("note-deleted");
+              EventBus.$emit("navigate", constants.basePaths.home);
+            })
+            .catch((error) => {
+              if (!error.handled) {
+                EventBus.$emit("unhandledServerError", error);
+              }
+            });
         });
     },
 
-    init: function () {
+    init() {
       this.currentNote = null;
       if (this.titleToLoad) {
         this.loadNote(this.titleToLoad);
@@ -411,20 +388,18 @@ export default {
     },
   },
 
-  created: function () {
-    let parent = this;
-
+  created() {
     // 'e' to edit
-    Mousetrap.bind("e", function () {
-      if (parent.editMode == false && parent.canModify) {
-        parent.setEditMode(true);
+    Mousetrap.bind("e", () => {
+      if (this.editMode == false && this.canModify) {
+        this.setEditMode(true);
       }
     });
 
     // 'ctrl+s' to save
-    // Mousetrap.bind("ctrl+s", function () {
-    //   if (parent.editMode == true) {
-    //     parent.saveNote();
+    // Mousetrap.bind("ctrl+s", () => {
+    //   if (this.editMode == true) {
+    //     this.saveNote();
     //     return false;
     //   }
     // });
@@ -433,106 +408,6 @@ export default {
   },
 };
 </script>
-
-<template>
-  <!-- Note -->
-  <div class="pb-4">
-    <!-- Loading -->
-    <div
-      v-if="currentNote == null"
-      class="h-100 d-flex flex-column justify-content-center"
-    >
-      <LoadingIndicator
-        :failed="noteLoadFailed"
-        :failedBootstrapIcon="noteLoadFailedIcon"
-        :failedMessage="noteLoadFailedMessage"
-      />
-    </div>
-
-    <!-- Loaded -->
-    <div v-else class="d-flex flex-column h-100">
-      <!-- Buttons -->
-      <div
-        class="d-flex justify-content-between flex-wrap align-items-end mb-3"
-      >
-        <!-- Title -->
-        <h2 v-if="editMode == false" class="title" :title="currentNote.title">
-          {{ currentNote.title }}
-        </h2>
-        <input
-          v-else
-          type="text"
-          class="h2 title-input flex-grow-1"
-          v-model="titleInput"
-          placeholder="Title"
-        />
-
-        <!-- Buttons -->
-        <div class="d-flex">
-          <!-- Edit -->
-          <button
-            v-if="canModify && editMode == false && noteLoadFailed == false"
-            type="button"
-            class="bttn"
-            @click="setEditMode(true)"
-            v-b-tooltip.hover
-            title="Keyboard Shortcut: e"
-          >
-            <b-icon icon="pencil-square"></b-icon> Edit
-          </button>
-
-          <!-- Delete -->
-          <button
-            v-if="canModify && editMode == false && noteLoadFailed == false"
-            type="button"
-            class="bttn"
-            @click="deleteNote"
-          >
-            <b-icon icon="trash"></b-icon> Delete
-          </button>
-
-          <!-- Cancel -->
-          <button
-            v-if="editMode == true"
-            type="button"
-            class="bttn"
-            @click="confirmCancelNote"
-          >
-            <b-icon icon="arrow-return-left"></b-icon> Cancel
-          </button>
-
-          <!-- Save -->
-          <button
-            v-if="editMode == true"
-            type="button"
-            class="bttn"
-            @click="saveNote"
-          >
-            <b-icon icon="check-square"></b-icon> Save
-          </button>
-        </div>
-      </div>
-
-      <!-- Viewer -->
-      <div v-if="editMode == false" class="note note-viewer">
-        <viewer :initialValue="currentNote.content" :options="viewerOptions" />
-      </div>
-
-      <!-- Editor -->
-      <div v-else class="note flex-grow-1">
-        <editor
-          :initialValue="initialContent"
-          :initialEditType="loadDefaultEditorMode()"
-          previewStyle="tab"
-          ref="toastUiEditor"
-          :options="editorOptions"
-          height="100%"
-          @change="startDraftSaveTimeout"
-        />
-      </div>
-    </div>
-  </div>
-</template>
 
 <style lang="scss" scoped>
 @import "../colours";

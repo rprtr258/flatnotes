@@ -7,7 +7,7 @@ function getCookieString(token) {
 export function setToken(token, persist = false) {
   document.cookie = getCookieString(token);
   sessionStorage.setItem(tokenStorageKey, token);
-  if (persist === true) {
+  if (persist) {
     localStorage.setItem(tokenStorageKey, token);
   }
 }
