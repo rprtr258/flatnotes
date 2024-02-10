@@ -1,14 +1,19 @@
 module github.com/rprtr258/flatnotes
 
-go 1.21
+go 1.21.1
+
+toolchain go1.21.6
 
 require (
-	github.com/gofiber/fiber/v2 v2.50.0
+	github.com/chasefleming/elem-go v0.20.0
+	github.com/gofiber/contrib/fiberzerolog v0.2.3
+	github.com/gofiber/fiber/v2 v2.51.0
 	github.com/golang-jwt/jwt/v5 v5.0.0
 	github.com/kljensen/snowball v0.8.0
-	github.com/rprtr258/fun v0.0.10
-	github.com/samber/lo v1.38.1
+	github.com/rprtr258/fun v0.0.12
+	github.com/rs/zerolog v1.32.0
 	github.com/stretchr/testify v1.8.4
+	github.com/yuin/goldmark v1.7.0
 )
 
 require (
@@ -24,7 +29,6 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.50.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
-	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
-	golang.org/x/sys v0.13.0 // indirect
+	golang.org/x/sys v0.14.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

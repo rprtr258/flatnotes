@@ -5,15 +5,7 @@ import { SearchResult } from "../classes";
 import api from "../api";
 
 export default {
-  components: {
-    LoadingIndicator,
-  },
-
-  props: {
-    maxNotes: { type: Number },
-  },
-
-  data: function () {
+  data() {
     return {
       notes: null,
       tags: null,
@@ -24,7 +16,7 @@ export default {
   },
 
   methods: {
-    getNotes: function () {
+    getNotes() {
       let parent = this;
       this.loadingFailed = false;
       api("/api/search", {
@@ -35,11 +27,11 @@ export default {
             limit: this.maxNotes,
           },
         })
-        .then(function (response) {
+        .then((response) => {
           parent.notes = [];
           if (response.length) {
-            response.forEach(function (searchResult) {
-              parent.notes.push(new SearchResult(searchResult));
+            response.forEach((searchResult) => {
+              parent.notes.push(SearchResult(searchResult));
             });
           } else {
             parent.loadingFailedMessage = "Click the 'New' button at the top of the page to add your first note";
@@ -47,7 +39,7 @@ export default {
             parent.loadingFailed = true;
           }
         })
-        .catch(function (error) {
+        .catch((error) => {
           parent.loadingFailed = true;
           if (!error.handled) {
             EventBus.$emit("unhandledServerError", error);
@@ -55,14 +47,14 @@ export default {
         });
     },
 
-    getTags: function () {
+    getTags() {
       let parent = this;
       this.loadingFailed = false;
       api("/api/tags")
-        .then(function (response) {
+        .then((response) => {
           parent.tags = [];
           if (response.length) {
-            response.forEach(function (tag) {
+            response.forEach((tag) => {
               parent.tags.push(tag);
             });
           } else {
@@ -71,7 +63,7 @@ export default {
             parent.loadingFailed = true;
           }
         })
-        .catch(function (error) {
+        .catch((error) => {
           parent.loadingFailed = true;
           if (!error.handled) {
             EventBus.$emit("unhandledServerError", error);
@@ -79,68 +71,21 @@ export default {
         });
     },
 
-    openNote: function (href, event) {
+    openNote(href, event) {
       EventBus.$emit("navigate", href, event);
     },
 
-    openTag: function (tag, event) {
+    openTag(tag, event) {
       EventBus.$emit("navigate", "/search?term=" + encodeURIComponent("#" + tag), event);
     },
   },
 
-  created: function () {
+  created() {
     this.getNotes();
     this.getTags();
   },
 };
 </script>
-
-<template>
-  <div
-    class="justify-content-top"
-  >
-    <!-- Loading -->
-    <div
-      v-if="notes == null || notes.length == 0"
-      class="h-100 d-flex flex-column justify-content-center"
-    >
-      <LoadingIndicator
-        :failed="loadingFailed"
-        :failedMessage="loadingFailedMessage"
-        :failedBootstrapIcon="loadingFailedIcon"
-        :show-loader="false"
-      />
-    </div> <!-- Notes Loaded -->
-      <div v-else
-        class="d-flex flex-row align-items-start"
-      >
-        <div
-          class="d-flex flex-column align-items-center"
-        >
-          <p class="mini-header mb-1">RECENTLY MODIFIED</p>
-          <a
-            v-for="note in notes"
-            :key="note.title"
-            class="bttn"
-            :href="note.href"
-            @click.prevent="openNote(note.href, $event)"
-          >{{ note.title }}</a>
-        </div>
-        <div
-          class="d-flex flex-column align-items-center"
-        >
-          <p class="mini-header mb-1">TAGS</p>
-          <a
-            v-for="tag in tags"
-            :key="tag"
-            class="bttn"
-            :href="tag"
-            @click.prevent="openTag(tag, $event)"
-          >#{{ tag }}</a>
-        </div>
-    </div>
-  </div>
-</template>
 
 <style lang="scss" scoped>
 @import "../colours";

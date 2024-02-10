@@ -28,24 +28,8 @@ export default {
     RecentlyModified,
   },
 
-  data: function () {
-    return {
-      authType: null,
-      views: {
-        login: 0,
-        home: 1,
-        note: 2,
-        search: 3,
-      },
-      currentView: 1,
-      noteTitle: null,
-      searchTerm: null,
-      darkTheme: false,
-    };
-  },
-
   watch: {
-    darkTheme: function () {
+    darkTheme() {
       if (this.darkTheme) {
         document.body.classList.add("dark-theme");
       } else {
@@ -55,27 +39,27 @@ export default {
   },
 
   methods: {
-    loadConfig: function () {
+    loadConfig() {
       let parent = this;
       api("/api/config")
-        .then(function(response) {
+        .then((response) => {
           parent.authType = response.authType;
         })
-        .catch(function(error) {
+        .catch((error) => {
           if (!error.handled) {
             parent.unhandledServerErrorToast(error);
           }
         });
     },
 
-    route: function () {
+    route() {
       let path = window.location.pathname.split("/");
       let basePath = `/${path[1]}`;
       this.$bvModal.hide("search-modal");
       if (basePath == constants.basePaths.home) {
         this.updateDocumentTitle();
         this.currentView = this.views.home;
-        this.$nextTick(function () {
+        this.$nextTick(() => {
           this.focusSearchInput();
         });
       } else if (basePath == constants.basePaths.search) {
@@ -95,7 +79,7 @@ export default {
       }
     },
 
-    navigate: function (href, e) {
+    navigate(href, e) {
       if (e != undefined && e.ctrlKey == true) {
         window.open(href);
       } else {
@@ -106,16 +90,16 @@ export default {
       }
     },
 
-    updateDocumentTitle: function (suffix) {
+    updateDocumentTitle(suffix) {
       window.document.title = (suffix ? `${suffix} - ` : "") + "flatnotes";
     },
 
-    logout: function () {
+    logout() {
       clearToken();
       this.navigate(constants.basePaths.login);
     },
 
-    noteDeletedToast: function () {
+    noteDeletedToast() {
       this.$bvToast.toast("Note deleted ✓", {
         variant: "success",
         noCloseButton: true,
@@ -123,13 +107,13 @@ export default {
       });
     },
 
-    focusSearchInput: function () {
+    focusSearchInput() {
       let input = document.getElementById("search-input");
       input.focus();
       input.select();
     },
 
-    openSearch: function () {
+    openSearch() {
       if ([this.views.home, this.views.search].includes(this.currentView)) {
         this.focusSearchInput();
         EventBus.$emit("highlight-search-input");
@@ -138,7 +122,7 @@ export default {
       }
     },
 
-    unhandledServerErrorToast: function (error) {
+    unhandledServerErrorToast(error) {
       console.log(error);
       this.$bvToast.toast(
         "Unknown error communicating with the server. Please try again.",
@@ -151,28 +135,26 @@ export default {
       );
     },
 
-    toggleTheme: function () {
+    toggleTheme() {
       this.darkTheme = !this.darkTheme;
       localStorage.setItem("darkTheme", this.darkTheme);
     },
 
-    updateNoteTitle: function (title) {
+    updateNoteTitle(title) {
       this.noteTitle = title;
       this.updateDocumentTitle(title);
     },
   },
 
-  created: function () {
-    let parent = this;
-
+  created() {
     this.constants = constants;
 
     EventBus.$on("navigate", this.navigate);
     EventBus.$on("unhandledServerError", this.unhandledServerErrorToast);
     EventBus.$on("updateNoteTitle", this.updateNoteTitle);
 
-    Mousetrap.bind("/", function () {
-      parent.openSearch();
+    Mousetrap.bind("/", () => {
+      this.openSearch();
       return false;
     });
 
@@ -193,12 +175,11 @@ export default {
     this.route();
   },
 
-  mounted: function () {
-    let parent = this;
+  mounted() {
     window.addEventListener("popstate", this.route);
-    this.$root.$on("bv::modal::shown", function (_, modalId) {
+    this.$root.$on("bv::modal::shown", (_, modalId) => {
       if (modalId == "search-modal") {
-        parent.focusSearchInput();
+        this.focusSearchInput();
       }
     });
   },

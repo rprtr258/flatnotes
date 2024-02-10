@@ -2,9 +2,7 @@ import * as constants from "./constants";
 import EventBus from "./eventBus";
 import { getToken } from "./tokenStorage";
 
-export default function api(path, options) {
-    const {body, params, method} = options || {};
-
+export default function api(path, {body, params, method}) {
     if (params) {
       path += "?" + new URLSearchParams(params);
     }
