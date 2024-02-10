@@ -31,7 +31,3 @@ test:
 
 cov: test
 	go tool cover -html=profile.out
-
-.PHONY: fuzz
-fuzz:
-	cd ./internal/goldmark/fuzz && go test -fuzz=Fuzz
