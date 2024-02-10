@@ -2,18 +2,6 @@ package internal
 
 import "github.com/rprtr258/flatnotes/internal/config"
 
-type Optional[T any] struct {
-	Value T
-	Valid bool
-}
-
-type Set[T comparable] map[T]struct{}
-
-func (s Set[T]) Has(item T) bool {
-	_, ok := s[item]
-	return ok
-}
-
 type TokenModel struct {
 	// Use of BaseModel instead of CustomBaseModel is intentional as OAuth
 	// requires keys to be snake_case

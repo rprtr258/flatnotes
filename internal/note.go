@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rprtr258/fun"
+	"github.com/rprtr258/fun/set"
 
 	"github.com/rprtr258/flatnotes/internal/fts"
 )
@@ -31,7 +31,7 @@ func (e InvalidTitleError) Error() string {
 type NoteDocument struct {
 	Title   string
 	Content string
-	Tags    Set[string]
+	Tags    set.Set[string]
 	Modtime time.Time
 }
 
@@ -52,9 +52,9 @@ func (d NoteDocument) Fields() map[string]fts.DocumentField {
 			Weight:  1,
 		},
 		"Tags": {
-			Content: strings.Join(fun.Keys(d.Tags), " "),
+			Content: strings.Join(d.Tags.List(), " "),
 			Weight:  4,
-			Terms:   fun.Keys(d.Tags),
+			Terms:   d.Tags.List(),
 		},
 	}
 }

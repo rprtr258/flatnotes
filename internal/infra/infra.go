@@ -209,7 +209,7 @@ func setupApp(app *fiber.App, cfg config.Config, flatnotes internal.App) {
 			return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("get tags: %w", err).Error())
 		}
 
-		return c.JSON([]string(fun.Keys(tags)))
+		return c.JSON(tags.List())
 	})
 
 	// Perform a full text search on all notes.

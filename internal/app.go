@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rprtr258/fun"
+	"github.com/rprtr258/fun/set"
 	"github.com/rs/zerolog/log"
 
 	"github.com/rprtr258/flatnotes/internal/fts"
@@ -57,13 +58,13 @@ func reExtract(re *regexp.Regexp, s string) (string, []string) {
 //
 // - The content without the tags.
 // - A set of tags converted to lowercase.
-func extractTags(content string) (string, Set[string]) {
+func extractTags(content string) (string, set.Set[string]) {
 	contentExCodeblock := _reCodeblocks.ReplaceAllLiteralString(content, "")
 	_, tags := reExtract(_reTags, contentExCodeblock)
 	contentExTags, _ := reExtract(_reTags, content)
-	tagsSet := Set[string]{}
+	tagsSet := set.New[string](len(tags))
 	for _, tag := range tags {
-		tagsSet[strings.ToLower(tag)] = struct{}{}
+		tagsSet.Add(strings.ToLower(tag))
 	}
 	return contentExTags, tagsSet
 }
@@ -97,7 +98,7 @@ func New(dir string) (App, error) {
 	if err := res.updateIndex(); err != nil {
 		return App{}, fmt.Errorf("update index: %w", err)
 	}
-	log.Info().Dur("in", time.Since(start)).Msg("finished initial indexing")
+	log.Info().Dur("duration", time.Since(start)).Msg("finished initial indexing")
 
 	return res, nil
 }
@@ -199,7 +200,7 @@ func (app *App) getNotes() ([]Note, error) {
 // Synchronize the index with the notes directory.
 // TODO: optimize
 func (app *App) updateIndex() error {
-	indexed := Set[string]{}
+	indexed := set.New[string](0)
 	docs := []NoteDocument{}
 	for id, doc := range app.Index.Documents {
 		idxFilename := id + _markdownExt
@@ -224,10 +225,10 @@ func (app *App) updateIndex() error {
 			// Update modified
 			log.Info().Str("id", id).Msg("updated")
 
-			indexed[id] = struct{}{}
+			indexed.Add(id)
 		} else {
 			// Ignore already indexed
-			indexed[id] = struct{}{}
+			indexed.Add(id)
 		}
 	}
 
@@ -238,7 +239,7 @@ func (app *App) updateIndex() error {
 	}
 
 	for _, note := range notes {
-		if indexed.Has(note.Title) {
+		if indexed.Contains(note.Title) {
 			continue
 		}
 
@@ -258,15 +259,15 @@ func (app *App) updateIndex() error {
 }
 
 // Return a list of all indexed tags.
-func (app *App) GetTags() (Set[string], error) {
+func (app *App) GetTags() (set.Set[string], error) {
 	if err := app.updateIndex(); err != nil {
-		return nil, err
+		return set.Set[string]{}, err
 	}
 
-	res := Set[string]{}
+	res := set.New[string](0)
 	for _, note := range app.Index.Documents {
-		for tag := range note.Tags {
-			res[tag] = struct{}{}
+		for tag := range note.Tags.Iter() {
+			res.Add(tag)
 		}
 	}
 	return res, nil
@@ -330,7 +331,7 @@ func (app *App) Search(
 			// /*terms=*/ true,
 			func() []string {
 				_, tags := extractTags(phrase)
-				return fun.Keys(tags)
+				return tags.List()
 			}(),
 		)
 	}
