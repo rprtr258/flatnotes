@@ -1,0 +1,43 @@
+{{ define "page-viewer-editor" }}
+{{/*
+authType config.AuthType,
+note internal.NoteContentResponseModel,
+*/}}
+{{ $canModify := ne .AuthType "read_only" }}
+<form
+  class="container h-full mx-auto"
+  hx-post="/api/notes"
+>
+  <div class="flex py-4 justify-between">
+    <!-- Title -->
+    <input
+      name="title"
+      type="text"
+      class="w-3/4 text-black p-2"
+      placeholder="Title"
+      tabindex="1"
+    >
+    <!-- Buttons -->
+    <div>
+      <!-- Save -->
+      <button
+        class="px-3 py-2 hover:bg-gray-700 hover:text-white"
+        type="submit"
+        tabindex="3"
+      >{{ template "icon" "check-square" }}Save</button>
+      <!-- Cancel -->
+      <button
+        class="px-3 py-2 hover:bg-gray-700 hover:text-white"
+        tabindex="4"
+      >{{ template "icon" "arrow-return-left" }}Cancel</button>
+    </div>
+  </div>
+  <!-- Editor -->
+  <textarea
+    name="content"
+    class="w-full h-4/6 text-black p-2"
+    placeholder="Content"
+    tabindex="2"
+  ></textarea>
+</form>
+{{ end }}

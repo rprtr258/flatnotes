@@ -1,0 +1,16 @@
+{{ define "search-input" }}
+<form class="my-2 w-2/3">
+  <div class="flex w-100">
+    <input
+      id="search-input"
+      type="text"
+      class="flex-auto w-100 bg-zinc-900 border border-zinc-400 px-3 py-1.5"
+      placeholder="Search"
+      value="{{ . }}"
+    ></input>
+    <div class="input-group-append border border-zinc-400 px-3 py-1.5">
+      <button type="submit">{{ template "icon" "search" }}</button>
+    </div>
+  </div>
+</form>
+{{ end }}

@@ -1,0 +1,30 @@
+{{ define "page-viewer-editor" }}
+{{/*
+authType config.AuthType,
+note internal.NoteContentResponseModel,
+*/}}
+{{ $canModify := ne .AuthType "read_only" }}
+<div class="container max-w-7xl mx-auto prose">
+  <div class="flex py-4 justify-between">
+    <!-- Title -->
+    <h1 class="text-4xl font-bold text-left">{{ .Note.Title }}</h1>
+    <!-- Buttons -->
+    <div>
+      {{ if $canModify }}
+        <!-- Edit -->
+        <button
+          class="px-3 py-2 hover:bg-gray-700 hover:text-white"
+          title="Keyboard Shortcut: e"
+        >{{ template "icon" "pencil-square" }}Edit</button>
+        <!-- Delete -->
+        <button class="px-3 py-2 hover:bg-gray-700 hover:text-white">{{ template "icon" "trash" }}Delete</button>
+      {{ end }}
+    </div>
+  </div>
+    <!-- Viewer -->
+    <div class="max-w-full prose text-white">
+      {{ .RenderedNote }}
+    </div>
+  </div>
+</div>
+{{ end }}

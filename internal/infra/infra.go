@@ -1,40 +1,99 @@
 package infra
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"net/url"
 	"os"
-	"path/filepath"
+	"slices"
 	"strings"
+	"time"
+	"unicode/utf8"
 
 	"github.com/gofiber/contrib/fiberzerolog"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rprtr258/fun"
 	"github.com/rs/zerolog/log"
+	"github.com/yuin/goldmark"
+	highlighting "github.com/yuin/goldmark-highlighting/v2"
+	meta "github.com/yuin/goldmark-meta"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer/html"
+	"go.abhg.dev/goldmark/toc"
+	"mvdan.cc/xurls/v2"
 
 	"github.com/rprtr258/flatnotes/internal"
 	"github.com/rprtr258/flatnotes/internal/config"
+	"github.com/rprtr258/flatnotes/internal/template"
+)
+
+type (
+	pageHomeData struct {
+		AuthType config.AuthType
+		Notes    []internal.SearchResultModel
+		Tags     []string
+	}
+	pageNoteData struct {
+		Note         internal.NoteContentResponseModel
+		RenderedNote template.HTML
+	}
+
+	searchResult struct {
+		Title                  string
+		Score                  float64
+		TitleHighlights        template.HTML
+		ContentHighlights      template.HTML
+		TagMatches             []string
+		Href                   string
+		LastModified           time.Time
+		TitleHighlightsOrTitle template.HTML
+	}
+	resultGroup struct {
+		Name          string
+		SearchResults []searchResult
+	}
+	pageSearchData struct {
+		AuthType        config.AuthType
+		ShowHighlights  bool
+		SortByIsGrouped bool
+		SearchTerm      string
+		SortOptions     []internal.Sort
+		ResultsGrouped  []resultGroup
+	}
 )
 
 var (
-	responseTitleExists = func(c *fiber.Ctx) error {
-		return c.Status(fiber.StatusConflict).JSON(map[string]string{
-			"message": "Note with specified title already exists.",
-		})
-	}
-	responseTitleInvalid = func(c *fiber.Ctx) error {
-		return c.Status(fiber.StatusBadRequest).JSON(map[string]string{
-			"message": "Title contains invalid characters.",
-		})
-	}
-	responseNoteNotFound = func(c *fiber.Ctx) error {
-		return c.Status(fiber.StatusNotFound).JSON(map[string]string{
-			"message": "The note cannot be found.",
-		})
-	}
+	pageHome     = template.Must(template.ParseFiles[pageHomeData]("templates/base.html", "templates/page_home.html", "templates/search_input.html"))
+	pageNotFound = template.Must(template.ParseFiles[config.AuthType]("templates/base.html", "templates/page_not_found.html"))
+	pageNote     = template.Must(template.ParseFiles[pageNoteData]("templates/base.html", "templates/note.html", "templates/page_viewer.html"))
+	pageNew      = template.Must(template.ParseFiles[struct{}]("templates/base.html", "templates/note.html", "templates/page_editor.html"))
+	pageSearch   = template.Must(template.ParseFiles[pageSearchData]("templates/base.html", "templates/page_search.html", "templates/search_input.html"))
+	// TODO: fix
+	pageLogin = template.Must(template.ParseFiles[struct{}]("templates/page_login.html"))
 )
+
+const (
+	_routeHome   = "/"
+	_routeLogin  = "/login"
+	_routeNote   = "/note"
+	_routeSearch = "/search"
+	_routeNew    = "/new"
+)
+
+var (
+	responseTitleExists  = fiber.NewError(fiber.StatusConflict, "Note with specified title already exists.")
+	responseTitleInvalid = fiber.NewError(fiber.StatusBadRequest, "Title contains invalid characters.")
+)
+
+func handlerPage[T any](t *template.Template[T], data T) func(*fiber.Ctx) error {
+	return func(c *fiber.Ctx) error {
+		c.Set(fiber.HeaderContentType, fiber.MIMETextHTMLCharsetUTF8)
+		return t.Execute(c, data)
+	}
+}
 
 func authenticate(cfg config.Config) func(*fiber.Ctx) error {
 	if fun.Contains(cfg.AuthType, config.AuthTypeNone, config.AuthTypeReadOnly) {
@@ -72,7 +131,7 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 	// totp = (
 	//     pyotp.TOTP(config.totp_key) if config.auth_type == AuthType.TOTP else None
 	// )
-	last_used_totp := ""
+	lastUsedTotp := ""
 
 	// Display TOTP QR code
 	// if config.auth_type == internal.AuthTypeTOTP{
@@ -86,22 +145,7 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 
 	authenticate := authenticate(cfg)
 
-	root := func(c *fiber.Ctx) error {
-		html, err := os.ReadFile("flatnotes/dist/index.html")
-		if err != nil {
-			return fmt.Errorf("read index.html: %w", err)
-		}
-
-		c.Set(fiber.HeaderContentType, fiber.MIMETextHTMLCharsetUTF8)
-		return c.Send(html)
-	}
-	fapp.Get("/", root)
-	fapp.Get("/login", root)
-	fapp.Get("/search", root)
-	fapp.Get("/new", root)
-	fapp.Get("/note/:title", root)
-
-	// Get a specific note.
+	// Get a specific note
 	fapp.Get("/api/notes/:title", authenticate, func(c *fiber.Ctx) error {
 		title, err := url.QueryUnescape(c.Params("title"))
 		if err != nil {
@@ -112,15 +156,213 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 		if err != nil {
 			switch err {
 			case internal.ErrTitleInvalid:
-				return responseTitleInvalid(c)
+				return responseTitleInvalid
 			case internal.ErrNotFound:
-				return responseNoteNotFound(c)
+				return handlerPage(pageNotFound, cfg.AuthType)(c)
 			default:
 				return err
 			}
 		}
 
 		return c.JSON(res)
+	})
+	// Get a list of all indexed tags
+	fapp.Get("/api/tags", authenticate, func(c *fiber.Ctx) error {
+		tags, err := app.GetTags()
+		if err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("get tags: %w", err).Error())
+		}
+
+		return c.JSON(tags.List())
+	})
+	// Perform a full text search on all notes
+	fapp.Get("/api/search", authenticate, func(c *fiber.Ctx) error {
+		term := c.Query("term")
+		sort := internal.Sort(c.QueryInt("sort"))
+		order := internal.Order(c.Query("order"))
+		limit := c.QueryInt("limit", 0)
+
+		res, err := app.Search(term, sort, order, limit)
+		if err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("search: %w", err).Error())
+		}
+
+		return c.JSON(res)
+	})
+
+	fapp.Get(_routeHome, func(c *fiber.Ctx) error {
+		tags, err := app.GetTags()
+		if err != nil {
+			return err
+		}
+
+		notes, err := app.Search("*", internal.SortScore, internal.OrderDesc, 5)
+		if err != nil {
+			return err
+		}
+
+		return handlerPage(pageHome, pageHomeData{
+			AuthType: cfg.AuthType,
+			Notes:    notes,
+			Tags:     tags.List(),
+		})(c)
+	})
+	fapp.Get(_routeLogin, handlerPage(pageLogin, struct{}{}))
+	fapp.Get(_routeSearch, func(c *fiber.Ctx) error {
+		term := c.Query("term")
+		sort := internal.Sort(c.QueryInt("sort"))
+		order := internal.Order(c.Query("order"))
+		limit := c.QueryInt("limit", 0)
+
+		res, err := app.Search(term, sort, order, limit)
+		if err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("search: %w", err).Error())
+		}
+
+		searchResults := fun.Map[searchResult](func(note internal.SearchResultModel) searchResult {
+			title := note.SearchResult.Title
+			titleHighlights := template.HTML(note.TitleHighlights)
+			return searchResult{
+				Title:                  title,
+				Score:                  note.SearchResult.Score,
+				TitleHighlights:        titleHighlights,
+				ContentHighlights:      template.HTML(note.ContentHighlights),
+				TagMatches:             note.TagMatches,
+				Href:                   _routeNote + "/" + url.PathEscape(title),
+				LastModified:           note.LastModified,
+				TitleHighlightsOrTitle: fun.IF(titleHighlights != "", titleHighlights, template.HTML(title)),
+			}
+		}, res...)
+		sortBy := internal.SortScore
+		return handlerPage(pageSearch, pageSearchData{
+			AuthType:        cfg.AuthType,
+			ShowHighlights:  true,
+			SortByIsGrouped: sortBy == internal.SortTitle,
+			SearchTerm:      term,
+			SortOptions:     internal.SortOptions,
+			ResultsGrouped: func() []resultGroup {
+				// data
+				//   searchFailed: false,
+				//   searchFailedMessage: "Failed to load Search Results",
+				//   searchFailedIcon: null,
+				//   searchResults: null,
+				//   searchResultsIncludeHighlights: null,
+
+				switch sortBy {
+				case internal.SortTitle:
+					const specialCharGroupTitle = "#"
+					const _alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+					notesGroupedDict := fun.GroupBy(
+						func(searchResult searchResult) string {
+							firstChar, _ := utf8.DecodeRuneInString(searchResult.Title)
+							firstCharUpper := strings.ToUpper(string(firstChar))
+							if strings.ContainsAny(firstCharUpper, _alphabet) {
+								return firstCharUpper
+							}
+
+							return specialCharGroupTitle
+						},
+						searchResults...,
+					)
+
+					// Convert dict to an array skipping empty groups
+					notesGroupedArray := fun.MapToSlice(notesGroupedDict, func(name string, results []searchResult) resultGroup {
+						slices.SortFunc(results, func(a, b searchResult) int {
+							return cmp.Compare(a.Title, b.Title)
+						})
+						return resultGroup{
+							Name: name,
+							// Sort by title within each group
+							SearchResults: results,
+						}
+					})
+
+					// Ensure the array is ordered correctly
+					slices.SortFunc(notesGroupedArray, func(a, b resultGroup) int {
+						return cmp.Compare(a.Name, b.Name)
+					})
+
+					return notesGroupedArray
+				case internal.SortLastModified:
+					slices.SortFunc(searchResults, func(a, b searchResult) int {
+						return cmp.Compare(
+							a.LastModified.Unix(),
+							b.LastModified.Unix(),
+						)
+					})
+				default:
+					slices.SortFunc(searchResults, func(a, b searchResult) int {
+						return -cmp.Compare(a.Score, b.Score)
+					})
+				}
+				return []resultGroup{{
+					Name:          "_",
+					SearchResults: searchResults,
+				}}
+			}(),
+		})(c)
+	})
+	fapp.Get(_routeNew, handlerPage(pageNew, struct{}{}))
+	fapp.Get(_routeNote+"/:title", func(c *fiber.Ctx) error {
+		title, err := url.QueryUnescape(c.Params("title"))
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, fmt.Errorf("invalid title: %w", err).Error())
+		}
+
+		res, err := app.GetNote(title)
+		if err != nil {
+			switch err {
+			case internal.ErrTitleInvalid:
+				return responseTitleInvalid
+			case internal.ErrNotFound:
+				return handlerPage(pageNotFound, cfg.AuthType)(c)
+			default:
+				return err
+			}
+		}
+
+		return handlerPage(pageNote, pageNoteData{
+			Note: res,
+			RenderedNote: func() template.HTML {
+				var sb strings.Builder
+				context := parser.NewContext()
+				_ = goldmark.
+					New(
+						goldmark.WithExtensions(
+							highlighting.NewHighlighting(
+								highlighting.WithStyle("doom-one2"),
+							),
+							extension.NewLinkify(
+								extension.WithLinkifyAllowedProtocols([]string{
+									"http:",
+									"https:",
+								}),
+								extension.WithLinkifyURLRegexp(
+									xurls.Strict(),
+								),
+							),
+							meta.Meta,
+							&toc.Extender{},
+						),
+						goldmark.WithRendererOptions(
+							html.WithXHTML(),
+							html.WithUnsafe(),
+						),
+						goldmark.WithParserOptions(parser.WithAutoHeadingID()),
+					).
+					Convert([]byte(res.Content), &sb, parser.WithContext(context))
+
+				metadata := meta.Get(context)
+				_ = metadata
+
+				s := sb.String()
+				s = strings.ReplaceAll(s, "\n", "<br>")
+				s = strings.ReplaceAll(s, "</h2><br>", "</h2>")
+				s = strings.ReplaceAll(s, "</p><br>", "</p>")
+				return template.HTML(s)
+			}(),
+		})(c)
 	})
 
 	if cfg.AuthType != config.AuthTypeReadOnly {
@@ -132,7 +374,7 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 						return fiber.NewError(fiber.StatusBadRequest, err.Error())
 					}
 
-					res, err := Authenticate(cfg, data, &last_used_totp)
+					res, err := Authenticate(cfg, data, &lastUsedTotp)
 					if err != nil {
 						return fiber.NewError(fiber.StatusUnauthorized, err.Error())
 					}
@@ -141,32 +383,32 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 				})
 		}
 
-		// Create a new note.
-		fapp.Post("/api/notes", authenticate, func(c *fiber.Ctx) error {
-			var data struct {
+		// Create a new note
+		fapp.Post("/api/notes" /*authenticate,*/, func(c *fiber.Ctx) error {
+			type NotePostModel struct {
 				Title   string `json:"title"`
 				Content string `json:"content"`
 			}
-			if err := c.BodyParser(&data); err != nil {
-				return fiber.NewError(fiber.StatusBadRequest, err.Error())
+			data := NotePostModel{
+				Title:   strings.TrimSpace(c.FormValue("title")),
+				Content: c.FormValue("content"),
 			}
-			data.Title = strings.TrimSpace(data.Title)
 
 			res, err := app.CreateNote(data.Title, data.Content)
 			if err != nil {
 				switch err {
 				case internal.ErrTitleInvalid:
-					return responseTitleInvalid(c)
+					return responseTitleInvalid
 				case internal.ErrTitleExists:
-					return responseTitleExists(c)
+					return responseTitleExists
 				default:
 					return err
 				}
 			}
 
+			c.Set("HX-Redirect", "/note/"+res.Title)
 			return c.JSON(res)
 		})
-
 		fapp.Patch("/api/notes/:title", authenticate, func(c *fiber.Ctx) error {
 			title, err := url.QueryUnescape(c.Params("title"))
 			if err != nil {
@@ -174,12 +416,12 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 			}
 			title = strings.TrimSpace(title)
 
-			var new_data internal.NotePatchModel
-			if err := c.BodyParser(&new_data); err != nil {
+			var newData internal.NotePatchModel
+			if err := c.BodyParser(&newData); err != nil {
 				return fiber.NewError(fiber.StatusBadRequest, err.Error())
 			}
 
-			res, err := app.UpdateNote(title, new_data)
+			res, err := app.UpdateNote(title, newData)
 			if err != nil {
 				// except InvalidTitleError:
 				//     return invalid_title_response
@@ -192,7 +434,6 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 
 			return c.JSON(res)
 		})
-
 		fapp.Delete("/api/notes/:title", authenticate, func(c *fiber.Ctx) error {
 			title, err := url.QueryUnescape(c.Params("title"))
 			if err != nil {
@@ -211,56 +452,20 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 		})
 	}
 
-	// Get a list of all indexed tags.
-	fapp.Get("/api/tags", authenticate, func(c *fiber.Ctx) error {
-		tags, err := app.GetTags()
-		if err != nil {
-			return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("get tags: %w", err).Error())
-		}
-
-		return c.JSON(tags.List())
-	})
-
-	// Perform a full text search on all notes.
-	fapp.Get("/api/search", authenticate, func(c *fiber.Ctx) error {
-		term := c.Query("term")
-		sort := fun.
-			Switch[internal.Sort, string](c.Query("sort"), internal.SortScore).
-			Case(internal.SortScore, "score").
-			Case(internal.SortTitle, "title").
-			Case(internal.SortLastModified, "lastModified").
-			End()
-		order := fun.
-			Switch[internal.Order, string](c.Query("order"), internal.OrderDesc).
-			Case(internal.OrderDesc, "desc").
-			Case(internal.OrderAsc, "asc").
-			End()
-		limit := c.QueryInt("limit", 0)
-
-		res, err := app.Search(term, sort, order, limit)
-		if err != nil {
-			return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("search: %w", err).Error())
-		}
-
-		return c.JSON(res)
-	})
-
-	// TODO: move config to debug
-	// TODO: hardcode auth type in frontend
-	fapp.Get("/api/config", func(c *fiber.Ctx) error {
-		return c.JSON(internal.ConfigModel{
-			AuthType: string(cfg.AuthType),
-		})
-	})
-
 	if os.Getenv("DEBUG") != "" {
+		fapp.Get("/api/debug/config", func(c *fiber.Ctx) error {
+			return c.JSON(internal.ConfigModel{
+				AuthType: string(cfg.AuthType),
+			})
+		})
+
 		fapp.Get("/api/debug/index", func(c *fiber.Ctx) error {
 			return c.JSON(app.Index)
 		})
 	}
 
-	fapp.Static("/", "./flatnotes/dist")
-	fapp.Static("/static", filepath.Join(cfg.DataPath, "static"))
+	// app.Static("/", "./flatnotes/dist")
+	// app.Static("/static", filepath.Join(cfg.DataPath, "static"))
 }
 
 func Run(ctx context.Context, cfg config.Config) error {
@@ -291,7 +496,6 @@ func Run(ctx context.Context, cfg config.Config) error {
 	if err != nil {
 		return fmt.Errorf("NewFlatnotes: %w", err)
 	}
-	// defer flatnotes.index.Close()
 
 	setupApp(app, cfg, appLogic)
 

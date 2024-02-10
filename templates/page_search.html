@@ -1,0 +1,60 @@
+{{ define "content" }}
+{{/* authType config.AuthType */}}
+{{/* searchResults []searchResult */}}
+{{/*       noteTitle: null */}}
+{{ $searchTerm := .SearchTerm }}
+{{ $showHighlights := .ShowHighlights }}
+{{ $sortByIsGrouped := .SortByIsGrouped }}
+
+<div class="flex-column h-100">
+  {{ template "navbar" . }}
+  <!-- Search Results -->
+  <div class="px-44 grow search-results-view flex-column">
+    <!-- Input -->
+    {{ template "search-input" $searchTerm }}
+    <!-- Controls -->
+    <select class="bg-black mb-3">
+      {{ range .SortOptions }}
+        <option
+          class="p-0"
+        >Order: "{{ . }}</option>
+      {{ end }}
+    </select>
+    <!-- Results -->
+    {{ range .ResultsGrouped }}
+      <div class="{{ if $sortByIsGrouped }}{{ else }}{{ end }}" :key="group.name">
+        {{ if $sortByIsGrouped }}
+          <p class="group-name">{{ .Name }}</p>
+        {{ end }}
+        {{ range .SearchResults }}
+          <div
+            class="mb-4 hover:bg-slate-800 px-4 py-2"
+          >
+            <a
+              href={{ .Href }}
+            >
+              <p>{{ .Score }}</p>
+              <div class="flex justify-between">
+                <p class="result-title">{{ .TitleHighlightsOrTitle }}</p>
+                <span
+                  class="last-modified d-none d-md-block"
+                  title="Last Modified"
+                >{{ .LastModified }}</span>
+              </div>
+              {{ if $showHighlights }}
+                <p class="result-contents">{{ .ContentHighlights }}</p>
+              {{ else }}
+                <div>
+                  {{ range .TagMatches }}
+                    <span class="tag mr-2">#{{ .Tag }}</span>
+                  {{ end }}
+                </div>
+              {{ end }}
+            </a>
+          </div>
+        {{ end }}
+      </div>
+    {{ end }}
+  </div>
+</div>
+{{ end }}
