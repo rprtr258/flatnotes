@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/rprtr258/flatnotes/internal/fts"
-	"github.com/samber/lo"
+	"github.com/rprtr258/fun/set"
 )
 
 func ospathexists(path string) bool {
@@ -30,7 +30,7 @@ func (e InvalidTitleError) Error() string {
 type NoteDocument struct {
 	Title   string
 	Content string
-	Tags    Set[string]
+	Tags    set.Set[string]
 	Modtime time.Time
 }
 
@@ -41,6 +41,7 @@ func (d NoteDocument) ID() string {
 var _reImageBase64 = regexp.MustCompile(`!\[[^\[\]]*\]\(data:image/\w+;base64,[a-zA-Z0-9+/=]+\)`)
 
 func (d NoteDocument) Fields() map[string]fts.DocumentField {
+	tags := d.Tags.List()
 	return map[string]fts.DocumentField{
 		"Title": {
 			Content: d.Title,
@@ -51,9 +52,9 @@ func (d NoteDocument) Fields() map[string]fts.DocumentField {
 			Weight:  1,
 		},
 		"Tags": {
-			Content: strings.Join(lo.Keys(d.Tags), " "),
+			Content: strings.Join(tags, " "),
 			Weight:  4,
-			Terms:   lo.Keys(d.Tags),
+			Terms:   tags,
 		},
 	}
 }
@@ -85,7 +86,7 @@ func createNote(dir, title, content string) (Note, time.Time, error) {
 	}
 	defer noteFile.Close()
 
-	if _, err := noteFile.Write([]byte(content)); err != nil {
+	if _, err := noteFile.WriteString(content); err != nil {
 		return Note{}, time.Time{}, fmt.Errorf("write content: %w", err)
 	}
 
@@ -143,8 +144,9 @@ func (n *Note) SetTitle(newTitle string) error {
 	return nil
 }
 
-func (n Note) GetContent() ([]byte, error) {
-	return os.ReadFile(noteFilepath(n.NotesDir, n.Title))
+func (n Note) GetContent() (string, error) {
+	data, err := os.ReadFile(noteFilepath(n.NotesDir, n.Title))
+	return string(data), err
 }
 
 func (n Note) SetContent(newContent []byte) error {

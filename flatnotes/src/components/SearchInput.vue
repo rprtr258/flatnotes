@@ -6,7 +6,7 @@ import EventBus from "../eventBus";
 export default {
   props: { initialValue: { type: String } },
 
-  data: function () {
+  data() {
     return {
       searchTermInput: null,
       includeHighlightClass: false,
@@ -14,13 +14,13 @@ export default {
   },
 
   watch: {
-    initialValue: function () {
+    initialValue() {
       this.init();
     },
   },
 
   methods: {
-    search: function () {
+    search() {
       if (this.searchTermInput) {
         this.searchTermInput = this.searchTermInput.trim();
       }
@@ -40,52 +40,30 @@ export default {
       }
     },
 
-    highlightSearchInput: function () {
+    highlightSearchInput() {
       let parent = this;
       this.includeHighlightClass = true;
-      setTimeout(function () {
+      setTimeout(() => {
         parent.includeHighlightClass = false;
       }, 1500);
     },
 
-    init: function () {
+    init() {
       this.searchTermInput = this.initialValue;
     },
   },
 
-  mounted: function () {
+  mounted() {
     this.$refs.input.focus();
     this.$refs.input.select();
   },
 
-  created: function () {
+  created() {
     EventBus.$on("highlight-search-input", this.highlightSearchInput);
     this.init();
   },
 };
 </script>
-
-<template>
-  <form v-on:submit.prevent="search" class="w-100">
-    <div class="input-group w-100">
-      <input
-        id="search-input"
-        ref="input"
-        type="text"
-        inputmode="search"
-        class="form-control"
-        :class="{ highlight: includeHighlightClass }"
-        placeholder="Search"
-        v-model="searchTermInput"
-      />
-      <div class="input-group-append">
-        <button class="btn" type="submit">
-          <b-icon icon="search"></b-icon>
-        </button>
-      </div>
-    </div>
-  </form>
-</template>
 
 <style lang="scss" scoped>
 @import "../colours";

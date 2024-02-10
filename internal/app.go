@@ -2,8 +2,8 @@ package internal
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -11,15 +11,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/samber/lo"
+	"github.com/rs/zerolog/log"
 
 	"github.com/rprtr258/flatnotes/internal/fts"
+	"github.com/rprtr258/fun"
+	"github.com/rprtr258/fun/set"
 )
 
 var (
-	ErrTitleExists  = fmt.Errorf("The specified title already exists.")
-	ErrTitleInvalid = fmt.Errorf("The specified title contains invalid characters.")
-	ErrNotFound     = fmt.Errorf("The specified note cannot be found.")
+	ErrTitleExists  = errors.New("the specified title already exists")
+	ErrTitleInvalid = errors.New("the specified title contains invalid characters")
+	ErrNotFound     = errors.New("the specified note cannot be found")
 )
 
 var (
@@ -34,6 +36,11 @@ func isValidTitle(title string) bool {
 	return !strings.ContainsAny(title, _invalidChars)
 }
 
+// substring return part of a string
+func substring(str string, offset, length int) string {
+	return string(fun.Subslice(offset, length, []rune(str)...))
+}
+
 // Similar to re.sub but returns a tuple of:
 //
 // - `string` with matches removed
@@ -41,22 +48,22 @@ func isValidTitle(title string) bool {
 func reExtract(re *regexp.Regexp, s string) (string, []string) {
 	text := re.ReplaceAllLiteralString(s, "")
 	matches := re.FindAllStringSubmatch(s, -1)
-	return text, lo.Map(matches, func(match []string, _ int) string {
+	return text, fun.Map[string](func(match []string) string {
 		return match[1]
-	})
+	}, matches...)
 }
 
 // Strip tags from the given content and return a tuple consisting of:
 //
 // - The content without the tags.
 // - A set of tags converted to lowercase.
-func extractTags(content string) (string, Set[string]) {
+func extractTags(content string) (string, set.Set[string]) {
 	contentExCodeblock := _reCodeblocks.ReplaceAllLiteralString(content, "")
 	_, tags := reExtract(_reTags, contentExCodeblock)
 	contentExTags, _ := reExtract(_reTags, content)
-	tagsSet := Set[string]{}
+	tagsSet := set.New[string](0)
 	for _, tag := range tags {
-		tagsSet[strings.ToLower(tag)] = struct{}{}
+		tagsSet.Add(strings.ToLower(tag))
 	}
 	return contentExTags, tagsSet
 }
@@ -70,6 +77,7 @@ func stripExt(filename string) string {
 type App struct {
 	Dir   string
 	Index *fts.Index[NoteDocument]
+	Notes map[string]NoteDocument
 }
 
 func New(dir string) (App, error) {
@@ -82,15 +90,16 @@ func New(dir string) (App, error) {
 	res := App{
 		Dir:   dir,
 		Index: fts.NewIndex[NoteDocument](),
+		Notes: map[string]NoteDocument{},
 	}
 
 	// for now loaded from fs on startup
 	start := time.Now()
-	log.Println("started initial indexing")
+	log.Info().Msg("started initial indexing")
 	if err := res.updateIndex(); err != nil {
 		return App{}, fmt.Errorf("update index: %w", err)
 	}
-	log.Println("finished initial indexing in", time.Since(start))
+	log.Info().Str("duration", time.Since(start).String()).Msg("finished initial indexing")
 
 	return res, nil
 }
@@ -103,9 +112,9 @@ type SearchResult struct {
 }
 
 func (app *App) newSearchResult(hit fts.Hit[NoteDocument]) (SearchResult, error) {
-	note, err := app.getNote(hit.Doc.ID())
+	note, err := app.getNote(hit.ID)
 	if err != nil {
-		return SearchResult{}, fmt.Errorf("get note %q: %w", hit.Doc.ID(), err)
+		return SearchResult{}, fmt.Errorf("get note %q: %w", hit.ID, err)
 	}
 
 	// If the search was ordered using a text field then hit.score is the
@@ -120,7 +129,7 @@ func (app *App) newSearchResult(hit fts.Hit[NoteDocument]) (SearchResult, error)
 		// 	titleHighlights += strings.Join(field, "\n")
 		// case "Content":
 		//	contentHighlights += strings.Join(field, "\n")
-		contentHighlights += re.ReplaceAllStringFunc(hit.Doc.Content, func(s string) string {
+		contentHighlights += re.ReplaceAllStringFunc(app.Notes[hit.ID].Content, func(s string) string {
 			return "<mark>" + s + "</mark>"
 		})
 		// case "Tags":
@@ -136,13 +145,13 @@ func (app *App) newSearchResult(hit fts.Hit[NoteDocument]) (SearchResult, error)
 	)
 	postProcessHighlight := func(s string) string {
 		lines := strings.Split(s, "\n")
-		lines = lo.Filter(lines, func(line string, _ int) bool {
+		lines = fun.Filter(func(line string) bool {
 			return strings.Contains(line, "<mark>")
-		})
-		lines = lo.Slice(lines, 0, 3)
+		}, lines...)
+		lines = fun.Subslice(0, 3, lines...)
 		for i, line := range lines {
 			j := strings.Index(line, "<mark>")
-			lines[i] = lo.Substring(line, j-100, 300)
+			lines[i] = substring(line, j-100, 300)
 		}
 		return replacer.Replace(strings.Join(lines, "<br>"))
 	}
@@ -157,8 +166,7 @@ func (app *App) newSearchResult(hit fts.Hit[NoteDocument]) (SearchResult, error)
 }
 
 func (app *App) getNote(title string) (Note, error) {
-	filepath := noteFilepath(app.Dir, title)
-	if !ospathexists(filepath) {
+	if !ospathexists(noteFilepath(app.Dir, title)) {
 		return Note{}, ErrNotFound
 	}
 
@@ -192,15 +200,15 @@ func (app *App) getNotes() ([]Note, error) {
 // Synchronize the index with the notes directory.
 // TODO: optimize
 func (app *App) updateIndex() error {
-	indexed := Set[string]{}
+	indexed := set.New[string](0)
 	docs := []NoteDocument{}
-	for id, doc := range app.Index.Documents {
+	for id, doc := range app.Notes {
 		idxFilename := id + _markdownExt
 		idxFilepath := filepath.Join(app.Dir, idxFilename)
 		if _, err := os.Stat(idxFilepath); os.IsNotExist(err) {
 			// Delete missing
-			app.Index.Remove(id)
-			log.Println(id, "removed from index")
+			app.Index.Delete(doc.ID())
+			log.Info().Str("id", id).Msg("removed from index")
 		} else if stat, err := os.Stat(idxFilepath); err == nil && stat.ModTime().After(doc.Modtime) {
 			note, err := app.getNote(id)
 			if err != nil {
@@ -215,12 +223,12 @@ func (app *App) updateIndex() error {
 			docs = append(docs, doc)
 
 			// Update modified
-			log.Println(id, "updated")
+			log.Info().Str("id", id).Msg("updated")
 
-			indexed[id] = struct{}{}
+			indexed.Add(id)
 		} else {
 			// Ignore already indexed
-			indexed[id] = struct{}{}
+			indexed.Add(id)
 		}
 	}
 
@@ -231,7 +239,7 @@ func (app *App) updateIndex() error {
 	}
 
 	for _, note := range notes {
-		if indexed.Has(note.Title) {
+		if indexed.Contains(note.Title) {
 			continue
 		}
 
@@ -242,25 +250,26 @@ func (app *App) updateIndex() error {
 
 		docs = append(docs, doc)
 
-		log.Printf("%q added to index\n", note.Title)
+		log.Info().Str("title", note.Title).Msg("added to index")
 	}
 
 	app.Index.Add(docs...)
+	for _, doc := range docs {
+		app.Notes[doc.ID()] = doc
+	}
 
 	return nil
 }
 
 // Return a list of all indexed tags.
-func (app *App) GetTags() (Set[string], error) {
+func (app *App) GetTags() (set.Set[string], error) {
 	if err := app.updateIndex(); err != nil {
-		return nil, err
+		return set.Set[string]{}, err
 	}
 
-	res := Set[string]{}
-	for _, note := range app.Index.Documents {
-		for tag := range note.Tags {
-			res[tag] = struct{}{}
-		}
+	res := set.New[string](0)
+	for _, note := range app.Notes {
+		res.Merge(note.Tags)
 	}
 	return res, nil
 }
@@ -282,6 +291,15 @@ const (
 	OrderDesc Order = "desc"
 )
 
+type SearchResultModel struct {
+	Note              NoteDocument
+	SearchResult      SearchResult
+	LastModified      time.Time
+	TitleHighlights   string
+	ContentHighlights string
+	TagMatches        []string
+}
+
 // Search the index for the given term.
 func (app *App) Search(
 	phrase string,
@@ -298,9 +316,10 @@ func (app *App) Search(
 	var hits []fts.Hit[NoteDocument]
 	// Parse Query
 	if phrase == "*" {
-		hits = lo.MapToSlice(app.Index.Documents, func(_ string, doc NoteDocument) fts.Hit[NoteDocument] {
+		hits = fun.MapToSlice(app.Notes, func(_ string, doc NoteDocument) fts.Hit[NoteDocument] {
 			return fts.Hit[NoteDocument]{
-				Doc:   doc,
+				ID:    doc.ID(),
+				Tags:  nil,
 				Score: 0,
 				Terms: nil,
 			}
@@ -323,7 +342,7 @@ func (app *App) Search(
 			// /*terms=*/ true,
 			func() []string {
 				_, tags := extractTags(phrase)
-				return lo.Keys(tags)
+				return tags.List()
 			}(),
 		)
 	}
@@ -333,44 +352,37 @@ func (app *App) Search(
 			return cmp.Compare(j.Score, i.Score)
 		}
 
-		return cmp.Compare(j.Doc.Modtime.Unix(), i.Doc.Modtime.Unix())
+		return cmp.Compare(app.Notes[j.ID].Modtime.Unix(), app.Notes[i.ID].Modtime.Unix())
 	})
 
 	if limit > 0 {
-		hits = lo.Slice(hits, 0, limit)
+		hits = fun.Subslice(0, limit, hits...)
 	}
 
-	res := []SearchResultModel{}
-	for _, hit := range hits {
-		searchRes, err := app.newSearchResult(hit)
-		if err != nil {
-			return nil, fmt.Errorf("map search result %v: %w", hit, err)
-		}
-
-		modtime, err := searchRes.LastModified()
-		if err != nil {
-			return nil, fmt.Errorf("get last modified time %q: %w", searchRes.Title, err)
-		}
-
-		toOption := func(s string) *string {
-			if s == "" {
-				return nil
+	return fun.MapErr[SearchResultModel, fts.Hit[NoteDocument], error](
+		func(hit fts.Hit[NoteDocument]) (SearchResultModel, error) {
+			searchRes, err := app.newSearchResult(hit)
+			if err != nil {
+				return SearchResultModel{}, fmt.Errorf("map search result %v: %w", hit, err)
 			}
-			return &s
-		}
-		res = append(res, SearchResultModel{
-			Score:             searchRes.Score,
-			Title:             searchRes.Title,
-			LastModified:      modtime.Unix(),
-			TitleHighlights:   toOption(searchRes.TitleHighlights),
-			ContentHighlights: toOption(searchRes.ContentHighlights),
-			TagMatches:        searchRes.TagMatches,
-		})
-	}
-	return res, nil
+
+			modtime, err := searchRes.LastModified()
+			if err != nil {
+				return SearchResultModel{}, fmt.Errorf("get last modified time %q: %w", searchRes.Title, err)
+			}
+
+			return SearchResultModel{
+				Note:              app.Notes[hit.ID],
+				SearchResult:      searchRes,
+				LastModified:      modtime,
+				TitleHighlights:   searchRes.TitleHighlights,
+				ContentHighlights: searchRes.ContentHighlights,
+				TagMatches:        searchRes.TagMatches,
+			}, nil
+		}, hits...)
 }
 
-func (app *App) GetNote(title string, includeContent bool) (NoteContentResponseModel, error) {
+func (app *App) GetNote(title string) (NoteContentResponseModel, error) {
 	note, err := app.getNote(title)
 	if err != nil {
 		return NoteContentResponseModel{}, err
@@ -381,14 +393,9 @@ func (app *App) GetNote(title string, includeContent bool) (NoteContentResponseM
 		return NoteContentResponseModel{}, fmt.Errorf("get last modified time %q: %w", title, err)
 	}
 
-	resContent := (*string)(nil)
-	if includeContent {
-		content, err := note.GetContent()
-		if err != nil {
-			return NoteContentResponseModel{}, fmt.Errorf("get content: %w", err)
-		}
-
-		resContent = lo.ToPtr(string(content))
+	content, err := note.GetContent()
+	if err != nil {
+		return NoteContentResponseModel{}, fmt.Errorf("get content: %w", err)
 	}
 
 	return NoteContentResponseModel{
@@ -396,7 +403,7 @@ func (app *App) GetNote(title string, includeContent bool) (NoteContentResponseM
 			Title:        note.Title,
 			LastModified: modtime.Unix(),
 		},
-		Content: resContent,
+		Content: content,
 	}, nil
 }
 
@@ -415,7 +422,7 @@ func (app *App) CreateNote(data NotePostModel) (NoteContentResponseModel, error)
 			Title:        note.Title,
 			LastModified: lastModified.Unix(),
 		},
-		Content: &data.Content,
+		Content: data.Content,
 	}, nil
 }
 
@@ -450,7 +457,7 @@ func (app *App) UpdateNote(title string, data NotePatchModel) (NoteContentRespon
 			Title:        note.Title,
 			LastModified: doc.Modtime.Unix(),
 		},
-		Content: lo.ToPtr(doc.Content),
+		Content: doc.Content,
 	}, nil
 }
 

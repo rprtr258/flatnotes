@@ -3,7 +3,7 @@ package fts
 import (
 	"sync"
 
-	"github.com/samber/lo"
+	"github.com/rprtr258/fun"
 )
 
 type DocumentField struct {
@@ -22,8 +22,6 @@ type Index[D Document] struct {
 	mu sync.RWMutex
 	// Field -> Term -> Document ID -> Term count in document field
 	InvIndex map[string]map[string]map[string]int
-	// all Documents
-	Documents map[string]D
 	// Field -> Term -> Term frequency among all documents field
 	TermFreq map[string]map[string]int
 }
@@ -31,10 +29,7 @@ type Index[D Document] struct {
 func NewIndex[D Document]() *Index[D] {
 	InvIndex := map[string]map[string]map[string]int{}
 	TermFreq := map[string]map[string]int{}
-	for field := range func() D {
-		var d D
-		return d
-	}().Fields() {
+	for field := range fun.Zero[D]().Fields() {
 		if _, ok := InvIndex[field]; !ok {
 			InvIndex[field] = map[string]map[string]int{}
 		}
@@ -45,10 +40,9 @@ func NewIndex[D Document]() *Index[D] {
 	}
 
 	return &Index[D]{
-		mu:        sync.RWMutex{},
-		InvIndex:  InvIndex,
-		Documents: map[string]D{},
-		TermFreq:  TermFreq,
+		mu:       sync.RWMutex{},
+		InvIndex: InvIndex,
+		TermFreq: TermFreq,
 	}
 }
 
@@ -76,25 +70,23 @@ func (idx *Index[D]) Add(docs ...D) {
 				idx.add(fieldName, term, doc.ID(), 1)
 			}
 		}
-		idx.Documents[doc.ID()] = doc
 	}
 }
 
-func (idx *Index[D]) Remove(id string) {
+func (idx *Index[D]) Delete(id string) {
 	idx.mu.Lock()
 	defer idx.mu.Unlock()
 
-	for field := range idx.Documents[id].Fields() {
-		for term, docs := range idx.InvIndex[field] {
+	for field, index := range idx.InvIndex {
+		for term, docs := range index {
 			idx.TermFreq[field][term] -= docs[id]
 			delete(docs, id)
 		}
 	}
-	delete(idx.Documents, id)
 }
 
 type Hit[D Document] struct {
-	Doc   D
+	ID    string
 	Score float64
 	Terms []Term
 	Tags  []string
@@ -124,10 +116,10 @@ func (idx *Index[D]) Search(query string, tags []string) []Hit[D] {
 		}
 	}
 
-	return lo.MapToSlice(scores, func(id string, score float64) Hit[D] {
+	return fun.MapToSlice(scores, func(id string, score float64) Hit[D] {
 		return Hit[D]{
+			ID:    id,
 			Score: score,
-			Doc:   idx.Documents[id],
 			Terms: queryTokens,
 			Tags:  docTags[id],
 		}
