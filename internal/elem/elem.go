@@ -101,5 +101,4 @@ func Element(tag string, attrs attrs.Props, children ...Node) Node {
 		sb.WriteString(tag)
 		sb.WriteString(`>`)
 	}
-
 }
