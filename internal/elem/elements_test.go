@@ -175,14 +175,26 @@ func TestRender(t *testing.T) {
 			el:       Label(attrs.Props{attrs.For: "username"}, Text("Username")),
 		},
 		"TestSelectAndOption": {
-			expected: `<select name="color"><option value="red">Red</option><option value="blue">Blue</option></select>`,
+			expected: `<select name="color">` +
+				`<option value="red">Red</option>` +
+				`<option value="blue">Blue</option>` +
+				`</select>`,
 			el: Select(attrs.Props{attrs.Name: "color"},
 				Option(attrs.Props{attrs.Value: "red"}, "Red"),
 				Option(attrs.Props{attrs.Value: "blue"}, "Blue"),
 			),
 		},
 		"TestSelectAndOptgroup": {
-			expected: `<select name="cars"><optgroup label="Swedish Cars"><option value="volvo">Volvo</option><option value="saab">Saab</option></optgroup><optgroup label="German Cars"><option value="mercedes">Mercedes</option><option value="audi">Audi</option></optgroup></select>`,
+			expected: `<select name="cars">` +
+				`<optgroup label="Swedish Cars">` +
+				`<option value="volvo">Volvo</option>` +
+				`<option value="saab">Saab</option>` +
+				`</optgroup>` +
+				`<optgroup label="German Cars">` +
+				`<option value="mercedes">Mercedes</option>` +
+				`<option value="audi">Audi</option>` +
+				`</optgroup>` +
+				`</select>`,
 			el: Select(attrs.Props{attrs.Name: "cars"},
 				Optgroup(attrs.Props{attrs.Label: "Swedish Cars"},
 					Option(attrs.Props{attrs.Value: "volvo"}, "Volvo"),
