@@ -36,8 +36,6 @@ github.com/rprtr258/assert v0.1.2 h1:jwLtKRAVAEGfAVg6OHw7oza+rQnyvPkaItaBBIX6uBU
 github.com/rprtr258/assert v0.1.2/go.mod h1:kb3RPPw8Lzntc/UL7cvkn9jkwXyeEa4aY5gmfGQBQec=
 github.com/rprtr258/fun v0.1.2 h1:iW8W6t2fZUj/0p1g0Kk9uNw6W0YRUaY/lv64CQxaIrQ=
 github.com/rprtr258/fun v0.1.2/go.mod h1:NSxpu762bmnY2jvMJA2pdoN68omSgmDhNr7aPQ3r3b4=
-github.com/samber/lo v1.53.0 h1:t975lj2py4kJPQ6haz1QMgtId2gtmfktACxIXArw3HM=
-github.com/samber/lo v1.53.0/go.mod h1:4+MXEGsJzbKGaUEQFKBq2xtfuznW9oz/WrgyzMzRoM0=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6KllzawFIhcdPw=

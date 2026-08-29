@@ -13,9 +13,9 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/samber/lo"
 
 	"github.com/rprtr258/flatnotes/internal"
+	"github.com/rprtr258/fun"
 )
 
 var (
@@ -206,23 +206,23 @@ func setupApp(app *fiber.App, config internal.Config, flatnotes internal.App) {
 			return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("get tags: %w", err).Error())
 		}
 
-		return c.JSON([]string(lo.Keys(tags)))
+		return c.JSON([]string(fun.Keys(tags)))
 	})
 
 	// Perform a full text search on all notes.
 	app.Get("/api/search", authenticate, func(c *fiber.Ctx) error {
 		term := c.Query("term")
-		sort := lo.
-			Switch[string, internal.Sort](c.Query("sort")).
-			Case("score", internal.SortScore).
-			Case("title", internal.SortTitle).
-			Case("lastModified", internal.SortLastModified).
-			Default(internal.SortScore)
-		order := lo.
-			Switch[string, internal.Order](c.Query("order")).
-			Case("desc", internal.OrderDesc).
-			Case("asc", internal.OrderAsc).
-			Default(internal.OrderDesc)
+		sort := fun.
+			Switch[internal.Sort, string](c.Query("sort"), internal.SortScore).
+			Case(internal.SortScore, "score").
+			Case(internal.SortTitle, "title").
+			Case(internal.SortLastModified, "lastModified").
+			End()
+		order := fun.
+			Switch[internal.Order, string](c.Query("order"), internal.OrderDesc).
+			Case(internal.OrderDesc, "desc").
+			Case(internal.OrderAsc, "asc").
+			End()
 		limit := c.QueryInt("limit", 0)
 
 		res, err := flatnotes.Search(term, sort, order, limit)

@@ -3,7 +3,7 @@ package fts
 import (
 	"sync"
 
-	"github.com/samber/lo"
+	"github.com/rprtr258/fun"
 )
 
 type DocumentField struct {
@@ -124,7 +124,7 @@ func (idx *Index[D]) Search(query string, tags []string) []Hit[D] {
 		}
 	}
 
-	return lo.MapToSlice(scores, func(id string, score float64) Hit[D] {
+	return fun.MapToSlice(scores, func(id string, score float64) Hit[D] {
 		return Hit[D]{
 			Score: score,
 			Doc:   idx.Documents[id],

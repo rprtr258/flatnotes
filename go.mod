@@ -1,6 +1,6 @@
 module github.com/rprtr258/flatnotes
 
-go 1.25.0
+go 1.27.0
 
 tool mvdan.cc/gofumpt
 
@@ -9,7 +9,6 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/kljensen/snowball v0.10.0
 	github.com/rprtr258/fun v0.1.2
-	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.11.1
 )
 

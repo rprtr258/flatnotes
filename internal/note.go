@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/rprtr258/flatnotes/internal/fts"
-	"github.com/samber/lo"
+	"github.com/rprtr258/fun"
 )
 
 func ospathexists(path string) bool {
@@ -51,9 +51,9 @@ func (d NoteDocument) Fields() map[string]fts.DocumentField {
 			Weight:  1,
 		},
 		"Tags": {
-			Content: strings.Join(lo.Keys(d.Tags), " "),
+			Content: strings.Join(fun.Keys(d.Tags), " "),
 			Weight:  4,
-			Terms:   lo.Keys(d.Tags),
+			Terms:   fun.Keys(d.Tags),
 		},
 	}
 }

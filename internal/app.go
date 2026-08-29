@@ -11,9 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/samber/lo"
-
 	"github.com/rprtr258/flatnotes/internal/fts"
+	"github.com/rprtr258/fun"
 )
 
 var (
@@ -34,6 +33,12 @@ func isValidTitle(title string) bool {
 	return !strings.ContainsAny(title, _invalidChars)
 }
 
+// substring return part of a string
+func substring(str string, offset, length int) string {
+	r := []rune(str)
+	return string(r[offset:min(offset+length, len(r))])
+}
+
 // Similar to re.sub but returns a tuple of:
 //
 // - `string` with matches removed
@@ -41,9 +46,9 @@ func isValidTitle(title string) bool {
 func reExtract(re *regexp.Regexp, s string) (string, []string) {
 	text := re.ReplaceAllLiteralString(s, "")
 	matches := re.FindAllStringSubmatch(s, -1)
-	return text, lo.Map(matches, func(match []string, _ int) string {
+	return text, fun.Map[string](func(match []string) string {
 		return match[1]
-	})
+	}, matches...)
 }
 
 // Strip tags from the given content and return a tuple consisting of:
@@ -136,13 +141,13 @@ func (app *App) newSearchResult(hit fts.Hit[NoteDocument]) (SearchResult, error)
 	)
 	postProcessHighlight := func(s string) string {
 		lines := strings.Split(s, "\n")
-		lines = lo.Filter(lines, func(line string, _ int) bool {
+		lines = fun.Filter(func(line string) bool {
 			return strings.Contains(line, "<mark>")
-		})
-		lines = lo.Slice(lines, 0, 3)
+		}, lines...)
+		lines = fun.Subslice(0, 3, lines...)
 		for i, line := range lines {
 			j := strings.Index(line, "<mark>")
-			lines[i] = lo.Substring(line, j-100, 300)
+			lines[i] = substring(line, j-100, 300)
 		}
 		return replacer.Replace(strings.Join(lines, "<br>"))
 	}
@@ -298,7 +303,7 @@ func (app *App) Search(
 	var hits []fts.Hit[NoteDocument]
 	// Parse Query
 	if phrase == "*" {
-		hits = lo.MapToSlice(app.Index.Documents, func(_ string, doc NoteDocument) fts.Hit[NoteDocument] {
+		hits = fun.MapToSlice(app.Index.Documents, func(_ string, doc NoteDocument) fts.Hit[NoteDocument] {
 			return fts.Hit[NoteDocument]{
 				Doc:   doc,
 				Score: 0,
@@ -323,7 +328,7 @@ func (app *App) Search(
 			// /*terms=*/ true,
 			func() []string {
 				_, tags := extractTags(phrase)
-				return lo.Keys(tags)
+				return fun.Keys(tags)
 			}(),
 		)
 	}
@@ -337,7 +342,7 @@ func (app *App) Search(
 	})
 
 	if limit > 0 {
-		hits = lo.Slice(hits, 0, limit)
+		hits = fun.Subslice(0, limit, hits...)
 	}
 
 	res := []SearchResultModel{}
@@ -388,7 +393,7 @@ func (app *App) GetNote(title string, includeContent bool) (NoteContentResponseM
 			return NoteContentResponseModel{}, fmt.Errorf("get content: %w", err)
 		}
 
-		resContent = lo.ToPtr(string(content))
+		resContent = new(string(content))
 	}
 
 	return NoteContentResponseModel{
@@ -450,7 +455,7 @@ func (app *App) UpdateNote(title string, data NotePatchModel) (NoteContentRespon
 			Title:        note.Title,
 			LastModified: doc.Modtime.Unix(),
 		},
-		Content: lo.ToPtr(doc.Content),
+		Content: new(doc.Content),
 	}, nil
 }
 
