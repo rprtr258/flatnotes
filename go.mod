@@ -3,7 +3,7 @@ module github.com/rprtr258/flatnotes
 go 1.21
 
 require (
-	github.com/gofiber/fiber/v2 v2.52.11
+	github.com/gofiber/fiber/v2 v2.52.14
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/kljensen/snowball v0.10.0
 	github.com/rprtr258/fun v0.0.13
