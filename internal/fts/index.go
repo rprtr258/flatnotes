@@ -108,7 +108,7 @@ func (idx *Index[D]) Search(query string, tags []string) []Hit[D] {
 	scores := map[string]float64{}
 	docTags := map[string][]string{}
 
-	queryTokens := analyze(query).ToSlice()
+	queryTokens := analyze(query).Slice()
 	for fieldName, field := range func() D {
 		var d D
 		return d

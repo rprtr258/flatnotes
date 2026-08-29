@@ -18,5 +18,5 @@ l2:
 
 .PHONY: frontend
 frontend:
-	npm install
-	npm run build
+	bun install
+	bun run build

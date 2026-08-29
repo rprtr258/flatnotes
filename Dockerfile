@@ -1,11 +1,13 @@
-FROM golang:1.21 AS build
+FROM golang:1.25 AS build
 WORKDIR /build
 RUN apt update && \
-  apt install -y npm
-COPY package.json package-lock.json .htmlnanorc ./
-RUN npm ci
+  apt install unzip
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:${PATH}"
+COPY package.json bun.lock .htmlnanorc ./
+RUN bun install --frozen-lockfile
 COPY flatnotes/src ./flatnotes/src
-RUN npm run build
+RUN bun run build
 COPY go.mod go.sum ./
 RUN go mod download
 COPY ./ ./

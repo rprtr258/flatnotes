@@ -14,7 +14,7 @@ type Term struct {
 
 // tokenize returns a slice of tokens for the given text.
 func tokenize(s string) iter.Seq[Term] {
-	return func(yield func(Term) bool) bool {
+	return func(yield func(Term) bool) {
 		// Find the field start and end indices.
 		// Doing this in a separate pass (rather than slicing the string s
 		// and collecting the result substrings right away) is significantly
@@ -28,31 +28,26 @@ func tokenize(s string) iter.Seq[Term] {
 						I:    start,
 						J:    end,
 					}) {
-						return false
+						return
 					}
 					// Set start to a negative value.
 					// Note: using -1 here consistently and reproducibly
 					// slows down this code by a several percent on amd64.
 					start = ^start
 				}
-			} else {
-				if start < 0 {
-					start = end
-				}
+			} else if start < 0 {
+				start = end
 			}
 		}
 
 		// Last field might end at EOF.
-		if start >= 0 {
-			if !yield(Term{
-				Term: s[start:],
-				I:    start,
-				J:    len(s),
-			}) {
-				return false
-			}
+		if start >= 0 && !yield(Term{
+			Term: s[start:],
+			I:    start,
+			J:    len(s),
+		}) {
+			return
 		}
-		return true
 	}
 }
 
