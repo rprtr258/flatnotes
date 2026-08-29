@@ -20,3 +20,7 @@ l2:
 frontend:
 	bun install
 	bun run build
+
+.PHONY: format
+format:
+	go tool gofumpt -l -w .
