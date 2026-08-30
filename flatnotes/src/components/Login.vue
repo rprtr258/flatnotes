@@ -1,99 +1,79 @@
-<script>
+<script setup lang="ts">
+import { ref, watch, onMounted } from "vue";
+
 import * as constants from "../constants";
 import * as helpers from "../helpers";
-import EventBus from "../eventBus";
-import Logo from "./Logo";
+import { eventBus } from "../eventBus";
+import Logo from "./Logo.vue";
+import Icon from "../ui/Icon.vue";
 import api from "../api";
+import { setToken } from "../tokenStorage";
+import { toast } from "../composables/useToast";
+import type { TokenResponse } from "../types";
 
-export default {
-  components: {
-    Logo,
-  },
+const props = defineProps<{ authType: string | null }>();
 
-  props: {
-    authType: { type: String, default: null },
-  },
+const usernameInput = ref<string | null>(null);
+const passwordInput = ref<string | null>(null);
+const totpInput = ref<string | null>(null);
+const rememberMeInput = ref(false);
 
-  data: function () {
-    return {
-      usernameInput: null,
-      passwordInput: null,
-      totpInput: null,
-      rememberMeInput: false,
-    };
-  },
+function skipIfNoneAuthType(): void {
+  if (props.authType === constants.authTypes.none) {
+    eventBus.emit("navigate", { href: constants.basePaths.home });
+  }
+}
 
-  watch: {
-    authType: function () {
-      this.skipIfNoneAuthType();
+watch(
+  () => props.authType,
+  () => skipIfNoneAuthType(),
+);
+
+function login(): void {
+  api<TokenResponse>("/api/token", {
+    body: {
+      username: usernameInput.value,
+      password: (passwordInput.value ?? "") + (props.authType === constants.authTypes.totp ? (totpInput.value ?? "") : ""),
     },
-  },
-
-  methods: {
-    skipIfNoneAuthType: function () {
-      // Skip past the login page if authentication is disabled
-      if (this.authType == constants.authTypes.none) {
-        EventBus.$emit("navigate", constants.basePaths.home);
+  })
+    .then((response) => {
+      setToken(response.access_token, rememberMeInput.value);
+      const redirectPath = helpers.getSearchParam(constants.params.redirect);
+      eventBus.emit("navigate", { href: redirectPath || constants.basePaths.home });
+    })
+    .catch((error) => {
+      const err = error as { handled?: boolean; status?: number };
+      if (err.handled) {
+        return;
+      } else if (err.status != null && [400, 422].includes(err.status)) {
+        toast("Incorrect login credentials ✘", { variant: "danger" });
+      } else {
+        eventBus.emit("unhandled-server-error", { error });
       }
-    },
+    })
+    .finally(() => {
+      usernameInput.value = null;
+      passwordInput.value = null;
+      totpInput.value = null;
+      rememberMeInput.value = false;
+    });
+}
 
-    login: function () {
-      let parent = this;
-      api("/api/token", {
-        body: {
-          username: this.usernameInput,
-          password: this.passwordInput + (this.authType == constants.authTypes.totp ? this.totpInput : ""),
-        },
-      })
-        .then(function (response) {
-          sessionStorage.setItem("token", response.access_token);
-          if (parent.rememberMeInput == true) {
-            localStorage.setItem("token", response.access_token);
-          }
-          let redirectPath = helpers.getSearchParam(constants.params.redirect);
-          EventBus.$emit("navigate", redirectPath || constants.basePaths.home);
-        })
-        .catch(function (error) {
-          if (error.handled) {
-            return;
-          } else if (typeof error.response !== "undefined" && [400, 422].includes(error.response.status)) {
-            parent.$bvToast.toast("Incorrect login credentials ✘", {
-              variant: "danger",
-              noCloseButton: true,
-              toaster: "b-toaster-bottom-right",
-            });
-          } else {
-            EventBus.$emit("unhandledServerError", error);
-          }
-        })
-        .finally(function () {
-          parent.usernameInput = null;
-          parent.passwordInput = null;
-          parent.totpInput = null;
-          parent.rememberMeInput = false;
-        });
-    },
-  },
-
-  created: function () {
-    this.constants = constants;
-    this.skipIfNoneAuthType();
-  },
-};
+onMounted(skipIfNoneAuthType);
 </script>
 
 <template>
   <div class="d-flex flex-column justify-content-center align-items-center">
     <!-- Logo -->
-    <Logo class="mb-5"></Logo>
+    <Logo class="mb-5" />
     <div
-      v-if="authType != null && authType != constants.authTypes.none"
+      v-if="authType != null && authType !== constants.authTypes.none"
       class="d-flex flex-column justify-content-center align-items-center"
     >
       <form
         v-show="authType != null"
         class="login-form d-flex flex-column align-items-center"
-        v-on:submit.prevent="login"
+        @submit.prevent="login"
       >
         <div class="mb-1">
           <!-- Username -->
@@ -124,7 +104,7 @@ export default {
           </div>
 
           <!-- 2FA -->
-          <div v-if="authType == constants.authTypes.totp" class="mb-1">
+          <div v-if="authType === constants.authTypes.totp" class="mb-1">
             <input
               type="text"
               inputmode="numeric"
@@ -152,7 +132,7 @@ export default {
 
         <!-- Button -->
         <button type="submit" class="bttn">
-          <b-icon icon="box-arrow-in-right"></b-icon> Log In
+          <Icon name="box-arrow-in-right" /> Log In
         </button>
       </form>
     </div>

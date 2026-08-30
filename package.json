@@ -2,27 +2,33 @@
   "name": "flatnotes",
   "version": "3.3.0",
   "description": "A database-less note taking web app that utilises a flat folder of markdown files for storage.",
-  "main": "flatnotes/src/index.html",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "parcel build --no-minify flatnotes/src/index.html --out-dir flatnotes/dist",
-    "build": "parcel build flatnotes/src/index.html --out-dir flatnotes/dist",
-    "watch": "parcel flatnotes/src/index.html --out-dir flatnotes/dist"
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit"
   },
   "author": "Adam Dullage",
   "license": "MIT",
   "dependencies": {
+    "@toast-ui/editor": "3.2.2",
     "@toast-ui/editor-plugin-code-syntax-highlight": "3.1.0",
-    "@toast-ui/vue-editor": "3.2.3",
-    "bootstrap-vue": "2.23.1",
-    "mousetrap": "1.6.5"
+    "bootstrap": "4.6.2",
+    "bootstrap-icons": "1.11.3",
+    "mitt": "3.0.1",
+    "mousetrap": "1.6.5",
+    "vue": "3.4.21"
   },
   "devDependencies": {
-    "@vue/component-compiler-utils": "3.3.0",
-    "parcel-bundler": "1.12.5",
-    "sass": "1.97.3",
-    "vue-hot-reload-api": "2.3.4",
-    "vue-template-compiler": "2.7.16"
+    "@types/mousetrap": "1.6.15",
+    "@types/node": "20.12.12",
+    "@vitejs/plugin-vue": "5.0.4",
+    "sass": "1.77.1",
+    "typescript": "5.4.5",
+    "vite": "5.2.11",
+    "vue-tsc": "2.0.16"
   },
   "htmlnano": {
     "minifySvg": false
