@@ -12,6 +12,7 @@ require (
 	github.com/rprtr258/fun v0.2.1
 	github.com/rs/zerolog v1.35.1
 	github.com/stretchr/testify v1.11.1
+	github.com/yuin/goldmark v1.8.5
 )
 
 require (
