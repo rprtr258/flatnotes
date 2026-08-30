@@ -11,8 +11,7 @@ run:
 
 .PHONY: watch
 watch:
-	# go install github.com/cespare/reflex@latest
-	DEBUG=1 reflex --decoration=none --start-service -r '\.(html|go)$$' -- go run ./cmd/main.go
+	DEBUG=1 go tool reflex --decoration=none --start-service -r '\.(html|go)$$' -- make run
 
 .PHONY: frontend
 frontend:
