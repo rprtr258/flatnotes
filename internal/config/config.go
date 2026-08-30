@@ -21,7 +21,7 @@ const (
 )
 
 // Get an environment variable.
-func get_env[T interface {
+func getEnv[T interface {
 	string | int
 }](key string, mandatory bool, defaultT T) T {
 	value, ok := os.LookupEnv(key)
@@ -52,12 +52,12 @@ type Config struct {
 	TotpKey       string
 }
 
-func get_auth_type() AuthType {
+func getAuthType() AuthType {
 	const key = "FLATNOTES_AUTH_TYPE"
-	rawAuthType := get_env[string](key, false, string(AuthTypePassword))
-	switch auth_type := AuthType(strings.ToLower(rawAuthType)); auth_type {
+	rawAuthType := getEnv[string](key, false, string(AuthTypePassword))
+	switch authType := AuthType(strings.ToLower(rawAuthType)); authType {
 	case AuthTypeNone, AuthTypeReadOnly, AuthTypePassword, AuthTypeTOTP:
-		return auth_type
+		return authType
 	default:
 		variants := strings.Join([]string{
 			string(AuthTypeNone),
@@ -70,24 +70,24 @@ func get_auth_type() AuthType {
 	panic("unreachable")
 }
 
-func get_totp_key(auth_type AuthType) string {
-	totp_key := get_env[string]("FLATNOTES_TOTP_KEY", auth_type == AuthTypeTOTP, "")
-	// if totp_key!=nil {
-	// 	return b32encode(totp_key.encode("utf-8"))
+func getTOTPKey(authType AuthType) string {
+	totpKey := getEnv[string]("FLATNOTES_TOTP_KEY", authType == AuthTypeTOTP, "")
+	// if totpKey!=nil {
+	// 	return b32encode(totpKey.encode("utf-8"))
 	// }
-	return totp_key
+	return totpKey
 }
 
 func New() (Config, error) {
-	auth_type := get_auth_type()
-	auth_needed := auth_type != AuthTypeNone && auth_type != AuthTypeReadOnly
+	authType := getAuthType()
+	authNeeded := authType != AuthTypeNone && authType != AuthTypeReadOnly
 	return Config{
-		DataPath:      get_env[string]("FLATNOTES_PATH", false, "/data"),
-		AuthType:      auth_type,
-		Username:      get_env[string]("FLATNOTES_USERNAME", auth_needed, ""),
-		Password:      get_env[string]("FLATNOTES_PASSWORD", auth_needed, ""),
-		SessionKey:    get_env[string]("FLATNOTES_SECRET_KEY", auth_needed, ""),
-		SessionExpiry: time.Duration(get_env[int]("FLATNOTES_SESSION_EXPIRY_DAYS", false, 30)) * 24 * time.Hour,
-		TotpKey:       get_totp_key(auth_type),
+		DataPath:      getEnv[string]("FLATNOTES_PATH", false, "/data"),
+		AuthType:      authType,
+		Username:      getEnv[string]("FLATNOTES_USERNAME", authNeeded, ""),
+		Password:      getEnv[string]("FLATNOTES_PASSWORD", authNeeded, ""),
+		SessionKey:    getEnv[string]("FLATNOTES_SECRET_KEY", authNeeded, ""),
+		SessionExpiry: time.Duration(getEnv[int]("FLATNOTES_SESSION_EXPIRY_DAYS", false, 30)) * 24 * time.Hour,
+		TotpKey:       getTOTPKey(authType),
 	}, nil
 }

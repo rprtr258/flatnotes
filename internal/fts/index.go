@@ -31,10 +31,7 @@ type Index[D Document] struct {
 func NewIndex[D Document]() *Index[D] {
 	InvIndex := map[string]map[string]map[string]int{}
 	TermFreq := map[string]map[string]int{}
-	for field := range func() D {
-		var d D
-		return d
-	}().Fields() {
+	for field := range fun.Zero[D]().Fields() {
 		if _, ok := InvIndex[field]; !ok {
 			InvIndex[field] = map[string]map[string]int{}
 		}
@@ -80,7 +77,7 @@ func (idx *Index[D]) Add(docs ...D) {
 	}
 }
 
-func (idx *Index[D]) Remove(id string) {
+func (idx *Index[D]) Delete(id string) {
 	idx.mu.Lock()
 	defer idx.mu.Unlock()
 

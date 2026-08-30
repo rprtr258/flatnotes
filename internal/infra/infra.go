@@ -2,6 +2,7 @@ package infra
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -36,31 +37,38 @@ var (
 )
 
 func authenticate(cfg config.Config) func(*fiber.Ctx) error {
-	if cfg.AuthType != config.AuthTypeNone && cfg.AuthType != config.AuthTypeReadOnly {
+	if fun.Contains(cfg.AuthType, config.AuthTypeNone, config.AuthTypeReadOnly) {
 		return func(c *fiber.Ctx) error {
-			authorizationHeaders := c.GetReqHeaders()[fiber.HeaderAuthorization]
+			return c.Next()
+		}
+	}
+
+	return func(c *fiber.Ctx) error {
+		authorizationHeaders := c.GetReqHeaders()[fiber.HeaderAuthorization]
+		if err := func() error {
 			if len(authorizationHeaders) != 1 {
-				return fiber.NewError(fiber.StatusUnauthorized, "missing Authorization header")
+				return errors.New("missing Authorization header")
 			}
 
 			token, ok := strings.CutPrefix(authorizationHeaders[0], "Bearer ")
 			if !ok {
-				return fiber.NewError(fiber.StatusUnauthorized, "invalid token in Authorization header")
+				return errors.New("invalid token in Authorization header")
 			}
 
 			if err := validateToken(cfg, token); err != nil {
-				return fiber.NewError(fiber.StatusUnauthorized, fmt.Errorf("validate token: %w", err).Error())
+				return fmt.Errorf("validate token: %w", err)
 			}
 
-			return c.Next()
+			return nil
+		}(); err != nil {
+			return fiber.NewError(fiber.StatusUnauthorized, err.Error())
 		}
-	}
-	return func(c *fiber.Ctx) error {
+
 		return c.Next()
 	}
 }
 
-func setupApp(app *fiber.App, cfg config.Config, flatnotes internal.App) {
+func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 	// totp = (
 	//     pyotp.TOTP(config.totp_key) if config.auth_type == AuthType.TOTP else None
 	// )
@@ -87,14 +95,14 @@ func setupApp(app *fiber.App, cfg config.Config, flatnotes internal.App) {
 		c.Set(fiber.HeaderContentType, fiber.MIMETextHTMLCharsetUTF8)
 		return c.Send(html)
 	}
-	app.Get("/", root)
-	app.Get("/login", root)
-	app.Get("/search", root)
-	app.Get("/new", root)
-	app.Get("/note/:title", root)
+	fapp.Get("/", root)
+	fapp.Get("/login", root)
+	fapp.Get("/search", root)
+	fapp.Get("/new", root)
+	fapp.Get("/note/:title", root)
 
 	// Get a specific note.
-	app.Get("/api/notes/:title", authenticate, func(c *fiber.Ctx) error {
+	fapp.Get("/api/notes/:title", authenticate, func(c *fiber.Ctx) error {
 		title, err := url.QueryUnescape(c.Params("title"))
 		if err != nil {
 			return fiber.NewError(fiber.StatusBadRequest, fmt.Errorf("invalid title: %w", err).Error())
@@ -102,7 +110,7 @@ func setupApp(app *fiber.App, cfg config.Config, flatnotes internal.App) {
 
 		includeContent := c.QueryBool("include_content", true)
 
-		res, err := flatnotes.GetNote(title, includeContent)
+		res, err := app.GetNote(title, includeContent)
 		if err != nil {
 			switch err {
 			case internal.ErrTitleInvalid:
@@ -119,7 +127,7 @@ func setupApp(app *fiber.App, cfg config.Config, flatnotes internal.App) {
 
 	if cfg.AuthType != config.AuthTypeReadOnly {
 		if cfg.AuthType != config.AuthTypeNone {
-			app.Post("/api/token",
+			fapp.Post("/api/token",
 				func(c *fiber.Ctx) error {
 					var data internal.LoginModel
 					if err := c.BodyParser(&data); err != nil {
@@ -136,14 +144,14 @@ func setupApp(app *fiber.App, cfg config.Config, flatnotes internal.App) {
 		}
 
 		// Create a new note.
-		app.Post("/api/notes", authenticate, func(c *fiber.Ctx) error {
+		fapp.Post("/api/notes", authenticate, func(c *fiber.Ctx) error {
 			var data internal.NotePostModel
 			if err := c.BodyParser(&data); err != nil {
 				return fiber.NewError(fiber.StatusBadRequest, err.Error())
 			}
 			data.Title = strings.TrimSpace(data.Title)
 
-			res, err := flatnotes.CreateNote(data)
+			res, err := app.CreateNote(data)
 			if err != nil {
 				switch err {
 				case internal.ErrTitleInvalid:
@@ -158,7 +166,7 @@ func setupApp(app *fiber.App, cfg config.Config, flatnotes internal.App) {
 			return c.JSON(res)
 		})
 
-		app.Patch("/api/notes/:title", authenticate, func(c *fiber.Ctx) error {
+		fapp.Patch("/api/notes/:title", authenticate, func(c *fiber.Ctx) error {
 			title, err := url.QueryUnescape(c.Params("title"))
 			if err != nil {
 				return fiber.NewError(fiber.StatusBadRequest, fmt.Errorf("invalid title: %w", err).Error())
@@ -170,7 +178,7 @@ func setupApp(app *fiber.App, cfg config.Config, flatnotes internal.App) {
 				return fiber.NewError(fiber.StatusBadRequest, err.Error())
 			}
 
-			res, err := flatnotes.UpdateNote(title, new_data)
+			res, err := app.UpdateNote(title, new_data)
 			if err != nil {
 				// except InvalidTitleError:
 				//     return invalid_title_response
@@ -184,13 +192,13 @@ func setupApp(app *fiber.App, cfg config.Config, flatnotes internal.App) {
 			return c.JSON(res)
 		})
 
-		app.Delete("/api/notes/:title", authenticate, func(c *fiber.Ctx) error {
+		fapp.Delete("/api/notes/:title", authenticate, func(c *fiber.Ctx) error {
 			title, err := url.QueryUnescape(c.Params("title"))
 			if err != nil {
 				return fiber.NewError(fiber.StatusBadRequest, fmt.Errorf("invalid title: %w", err).Error())
 			}
 
-			if err := flatnotes.DeleteNote(title); err != nil {
+			if err := app.DeleteNote(title); err != nil {
 				// except InvalidTitleError:
 				//     return invalid_title_response
 				// except FileNotFoundError:
@@ -203,8 +211,8 @@ func setupApp(app *fiber.App, cfg config.Config, flatnotes internal.App) {
 	}
 
 	// Get a list of all indexed tags.
-	app.Get("/api/tags", authenticate, func(c *fiber.Ctx) error {
-		tags, err := flatnotes.GetTags()
+	fapp.Get("/api/tags", authenticate, func(c *fiber.Ctx) error {
+		tags, err := app.GetTags()
 		if err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("get tags: %w", err).Error())
 		}
@@ -213,7 +221,7 @@ func setupApp(app *fiber.App, cfg config.Config, flatnotes internal.App) {
 	})
 
 	// Perform a full text search on all notes.
-	app.Get("/api/search", authenticate, func(c *fiber.Ctx) error {
+	fapp.Get("/api/search", authenticate, func(c *fiber.Ctx) error {
 		term := c.Query("term")
 		sort := fun.
 			Switch[internal.Sort, string](c.Query("sort"), internal.SortScore).
@@ -228,7 +236,7 @@ func setupApp(app *fiber.App, cfg config.Config, flatnotes internal.App) {
 			End()
 		limit := c.QueryInt("limit", 0)
 
-		res, err := flatnotes.Search(term, sort, order, limit)
+		res, err := app.Search(term, sort, order, limit)
 		if err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("search: %w", err).Error())
 		}
@@ -238,23 +246,23 @@ func setupApp(app *fiber.App, cfg config.Config, flatnotes internal.App) {
 
 	// TODO: move config to debug
 	// TODO: hardcode auth type in frontend
-	app.Get("/api/config", func(c *fiber.Ctx) error {
+	fapp.Get("/api/config", func(c *fiber.Ctx) error {
 		return c.JSON(internal.ConfigModel{
 			AuthType: cfg.AuthType,
 		})
 	})
 
 	if os.Getenv("DEBUG") != "" {
-		app.Get("/api/debug/index", func(c *fiber.Ctx) error {
-			return c.JSON(flatnotes.Index)
+		fapp.Get("/api/debug/index", func(c *fiber.Ctx) error {
+			return c.JSON(app.Index)
 		})
 	}
 
-	app.Static("/", "./flatnotes/dist")
-	app.Static("/static", filepath.Join(cfg.DataPath, "static"))
+	fapp.Static("/", "./flatnotes/dist")
+	fapp.Static("/static", filepath.Join(cfg.DataPath, "static"))
 }
 
-func Run(ctx context.Context, config config.Config) error {
+func Run(ctx context.Context, cfg config.Config) error {
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			switch e := err.(type) {
@@ -277,13 +285,13 @@ func Run(ctx context.Context, config config.Config) error {
 	// 	Title:    "Fiber API documentation",
 	// }))
 
-	appLogic, err := internal.New(config.DataPath)
+	appLogic, err := internal.New(cfg.DataPath)
 	if err != nil {
 		return fmt.Errorf("NewFlatnotes: %w", err)
 	}
 	// defer flatnotes.index.Close()
 
-	setupApp(app, config, appLogic)
+	setupApp(app, cfg, appLogic)
 
 	go func() {
 		<-ctx.Done()

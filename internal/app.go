@@ -165,8 +165,7 @@ func (app *App) newSearchResult(hit fts.Hit[NoteDocument]) (SearchResult, error)
 }
 
 func (app *App) getNote(title string) (Note, error) {
-	filepath := noteFilepath(app.Dir, title)
-	if !ospathexists(filepath) {
+	if !ospathexists(noteFilepath(app.Dir, title)) {
 		return Note{}, ErrNotFound
 	}
 
@@ -207,7 +206,7 @@ func (app *App) updateIndex() error {
 		idxFilepath := filepath.Join(app.Dir, idxFilename)
 		if _, err := os.Stat(idxFilepath); os.IsNotExist(err) {
 			// Delete missing
-			app.Index.Remove(id)
+			app.Index.Delete(id)
 			log.Info().Str("id", id).Msg("removed from index")
 		} else if stat, err := os.Stat(idxFilepath); err == nil && stat.ModTime().After(doc.Modtime) {
 			note, err := app.getNote(id)
@@ -250,7 +249,7 @@ func (app *App) updateIndex() error {
 
 		docs = append(docs, doc)
 
-		log.Printf("%q added to index\n", note.Title)
+		log.Info().Str("title", note.Title).Msg("added to index")
 	}
 
 	app.Index.Add(docs...)
@@ -266,9 +265,7 @@ func (app *App) GetTags() (set.Set[string], error) {
 
 	res := set.New[string](0)
 	for _, note := range app.Index.Documents {
-		for tag := range note.Tags.Iter() {
-			res.Add(tag)
-		}
+		res.Merge(note.Tags)
 	}
 	return res, nil
 }
@@ -348,34 +345,29 @@ func (app *App) Search(
 		hits = fun.Subslice(0, limit, hits...)
 	}
 
-	res := []SearchResultModel{}
-	for _, hit := range hits {
+	return fun.MapErr[SearchResultModel](func(hit fts.Hit[NoteDocument]) (SearchResultModel, error) {
 		searchRes, err := app.newSearchResult(hit)
 		if err != nil {
-			return nil, fmt.Errorf("map search result %v: %w", hit, err)
+			return SearchResultModel{}, fmt.Errorf("map search result %v: %w", hit, err)
 		}
 
 		modtime, err := searchRes.LastModified()
 		if err != nil {
-			return nil, fmt.Errorf("get last modified time %q: %w", searchRes.Title, err)
+			return SearchResultModel{}, fmt.Errorf("get last modified time %q: %w", searchRes.Title, err)
 		}
 
 		toOption := func(s string) *string {
-			if s == "" {
-				return nil
-			}
-			return &s
+			return fun.IF(s == "", nil, &s)
 		}
-		res = append(res, SearchResultModel{
+		return SearchResultModel{
 			Score:             searchRes.Score,
 			Title:             searchRes.Title,
 			LastModified:      modtime.Unix(),
 			TitleHighlights:   toOption(searchRes.TitleHighlights),
 			ContentHighlights: toOption(searchRes.ContentHighlights),
 			TagMatches:        searchRes.TagMatches,
-		})
-	}
-	return res, nil
+		}, nil
+	}, hits...)
 }
 
 func (app *App) GetNote(title string, includeContent bool) (NoteContentResponseModel, error) {
@@ -396,7 +388,7 @@ func (app *App) GetNote(title string, includeContent bool) (NoteContentResponseM
 			return NoteContentResponseModel{}, fmt.Errorf("get content: %w", err)
 		}
 
-		resContent = new(string(content))
+		resContent = new(content)
 	}
 
 	return NoteContentResponseModel{

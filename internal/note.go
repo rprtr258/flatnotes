@@ -42,6 +42,7 @@ func (d NoteDocument) ID() string {
 var _reImageBase64 = regexp.MustCompile(`!\[[^\[\]]*\]\(data:image/\w+;base64,[a-zA-Z0-9+/=]+\)`)
 
 func (d NoteDocument) Fields() map[string]fts.DocumentField {
+	tags := d.Tags.List()
 	return map[string]fts.DocumentField{
 		"Title": {
 			Content: d.Title,
@@ -52,9 +53,9 @@ func (d NoteDocument) Fields() map[string]fts.DocumentField {
 			Weight:  1,
 		},
 		"Tags": {
-			Content: strings.Join(d.Tags.List(), " "),
+			Content: strings.Join(tags, " "),
 			Weight:  4,
-			Terms:   d.Tags.List(),
+			Terms:   tags,
 		},
 	}
 }
@@ -86,7 +87,7 @@ func createNote(dir, title, content string) (Note, time.Time, error) {
 	}
 	defer noteFile.Close()
 
-	if _, err := noteFile.Write([]byte(content)); err != nil {
+	if _, err := noteFile.WriteString(content); err != nil {
 		return Note{}, time.Time{}, fmt.Errorf("write content: %w", err)
 	}
 
@@ -105,7 +106,7 @@ func toDocument(note Note) (NoteDocument, error) {
 		return NoteDocument{}, fmt.Errorf("get content %q: %w", note.Title, err)
 	}
 
-	_, tags := extractTags(string(content))
+	_, tags := extractTags(content)
 
 	modtime, err := note.LastModified()
 	if err != nil {
@@ -114,7 +115,7 @@ func toDocument(note Note) (NoteDocument, error) {
 
 	return NoteDocument{
 		Title:   note.Title,
-		Content: string(content),
+		Content: content,
 		Tags:    tags,
 		Modtime: modtime,
 	}, nil
@@ -144,8 +145,9 @@ func (n *Note) SetTitle(newTitle string) error {
 	return nil
 }
 
-func (n Note) GetContent() ([]byte, error) {
-	return os.ReadFile(noteFilepath(n.NotesDir, n.Title))
+func (n Note) GetContent() (string, error) {
+	data, err := os.ReadFile(noteFilepath(n.NotesDir, n.Title))
+	return string(data), err
 }
 
 func (n Note) SetContent(newContent []byte) error {
