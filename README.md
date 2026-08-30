@@ -14,14 +14,10 @@ Log into the [demo site](https://demo.flatnotes.io) and take a look around. *Not
 * [Design Principle](#design-principle)
 * [Features](#features)
 * [Getting Started](#getting-started)
-  * [Hosted](#hosted)
-  * [Self Hosted](#self-hosted)
-* [Roadmap](#roadmap)
-* [Sponsorship](#sponsorship)
-* [Thanks](#thanks)
+  * [Using Docker](#using-docker)
+  * [Using Docker Compose](#using-docker-compose)
 
 ## Design Principle
-
 flatnotes is designed to be a distraction-free note-taking app that puts your note content first. This means:
 
 * A clean and simple user interface.
@@ -33,32 +29,15 @@ Another key design principle is not to take your notes hostage. Your notes are j
 Equally, the only thing flatnotes caches is the search index and that's incrementally synced on every search (and when flatnotes first starts). This means that you're free to add, edit & delete the markdown files outside of flatnotes even whilst flatnotes is running.
 
 ## Features
-
-* Mobile responsive web interface.
-* Raw/WYSIWYG markdown editor modes.
 * Advanced search functionality.
 * Note "tagging" functionality.
 * Light/dark themes.
-* Multiple authentication options (none, read-only, username/password, 2FA).
 * Restful API.
 
 See [the wiki](https://github.com/rprtr258/flatnotes/wiki) for more details.
 
 ## Getting Started
-
-### Hosted
-
-A quick and easy way to get started with flatnotes is to host it on PikaPods. Just click the button below and follow the instructions.
-
-[![PikaPods](https://www.pikapods.com/static/run-button-34.svg)](https://www.pikapods.com/pods?run=flatnotes)
-
-
-### Self Hosted
-
-If you'd prefer to host flatnotes yourself then the recommendation is to use Docker.
-
-### Example Docker Run Command
-
+### Using Docker
 ```shell
 docker run -d \
   -e "PUID=1000" \
@@ -72,48 +51,8 @@ docker run -d \
   dullage/flatnotes:latest
 ```
 
-### Example Docker Compose
-```yaml
-version: "3"
-
-services:
-  flatnotes:
-    container_name: flatnotes
-    image: dullage/flatnotes:latest
-    environment:
-      PUID: 1000
-      PGID: 1000
-      FLATNOTES_AUTH_TYPE: "password"
-      FLATNOTES_USERNAME: "user"
-      FLATNOTES_PASSWORD: "changeMe!"
-      FLATNOTES_SECRET_KEY: "aLongRandomSeriesOfCharacters"
-    volumes:
-      - "./data:/data"
-      # Optional. Allows you to save the search index in a different location:
-      # - "./index:/data/.flatnotes"
-    ports:
-      - "8080:8080"
-    restart: unless-stopped
-```
+### Using Docker Compose
+[docker-compose.yaml](./docker-compose.yaml)
 
 See the [Environment Variables](https://github.com/rprtr258/flatnotes/wiki/Environment-Variables) article in the wiki for a full list of configuration options.
 
-
-## Roadmap
-
-I want to keep flatnotes as simple and distraction-free as possible which means limiting new features. This said, I welcome feedback and suggestions.
-
-
-## Sponsorship
-
-If you find this project useful, please consider buying me a beer. It would genuinely make my day.
-
-[![Sponsor](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86)](https://github.com/sponsors/Dullage)
-
-
-## Thanks
-
-A special thanks to 2 fantastic open-source projects that make flatnotes possible.
-
-* [Whoosh](https://whoosh.readthedocs.io/en/latest/intro.html) - A fast, pure Python search engine library.
-* [TOAST UI Editor](https://ui.toast.com/tui-editor) - A GFM Markdown and WYSIWYG editor for the browser.
