@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch, nextTick, type ComponentPublicInstance } from "vue";
 import { eventBus } from "../eventBus";
 import Icon from "../ui/Icon.vue";
 import LoadingIndicator from "./LoadingIndicator.vue";
@@ -26,6 +26,7 @@ type FlatRow = {
 const notes = ref<SearchResultModel[] | null>(null);
 const loadingFailed = ref(false);
 const expanded = ref<Set<string>>(new Set());
+const activeRowEl = ref<HTMLElement | null>(null);
 
 function noteHref(title: string): string {
   return "/note/" + title.split("/").map(encodeURIComponent).join("/");
@@ -94,6 +95,29 @@ function toggle(path: string): void {
   }
 }
 
+function expandAncestors(title: string): void {
+  const parts = title.split("/");
+  let prefix = "";
+  for (let i = 0; i < parts.length - 1; i++) {
+    prefix = prefix ? prefix + "/" + parts[i] : parts[i];
+    expanded.value.add(prefix);
+  }
+}
+
+function setActiveRow(el: Element | ComponentPublicInstance | null): void {
+  activeRowEl.value = (el as HTMLElement) ?? null;
+}
+
+watch(
+  () => [props.activeTitle, notes.value] as const,
+  ([title]) => {
+    if (!title || !notes.value) return;
+    expandAncestors(title);
+    void nextTick(() => activeRowEl.value?.scrollIntoView({ block: "nearest" }));
+  },
+  { immediate: true }
+);
+
 function navigate(href: string, event?: Event): void {
   eventBus.emit("navigate", { href, event });
 }
@@ -136,6 +160,7 @@ onMounted(getNotes);
           :class="[row.isDir ? 'dir' : 'file', { active: !row.isDir && props.activeTitle === row.path }]"
           :style="{ paddingLeft: 8 + row.depth * 14 + 'px' }"
           :href="row.isDir ? undefined : noteHref(row.path)"
+          :ref="!row.isDir && props.activeTitle === row.path ? setActiveRow : undefined"
           @click.prevent="row.isDir ? toggle(row.path) : navigate(noteHref(row.path), $event)"
         >
           <Icon v-if="row.isDir" :name="row.expanded ? 'caret-down-fill' : 'caret-right-fill'" />
