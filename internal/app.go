@@ -39,6 +39,7 @@ func isValidTitle(title string) bool {
 // substring return part of a string
 func substring(str string, offset, length int) string {
 	r := []rune(str)
+	offset = max(offset, 0)
 	return string(r[offset:min(offset+length, len(r))])
 }
 
