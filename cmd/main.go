@@ -13,9 +13,9 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/rprtr258/fun"
 
 	"github.com/rprtr258/flatnotes/internal"
-	"github.com/rprtr258/fun"
 )
 
 var (

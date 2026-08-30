@@ -11,8 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rprtr258/flatnotes/internal/fts"
 	"github.com/rprtr258/fun"
+
+	"github.com/rprtr258/flatnotes/internal/fts"
 )
 
 var (
