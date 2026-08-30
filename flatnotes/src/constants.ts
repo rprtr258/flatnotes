@@ -1,9 +1,10 @@
 export const basePaths = {
-  home:   "/",
-  login:  "/login",
-  note:   "/note",
+  home:  "/",
+  login: "/login",
+  note:  "/note",
   search: "/search",
-  new:    "/new",
+  new:   "/new",
+  todos: "/todos",
 } as const;
 
 export const params = {

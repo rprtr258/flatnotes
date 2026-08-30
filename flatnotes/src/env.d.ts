@@ -17,7 +17,7 @@ declare module "@toast-ui/editor" {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   export type CustomHTMLRenderer = Record<string, (node: any, context: any) => any>;
 
-  export interface EditorOptions {
+  export type EditorOptions = {
     el: HTMLElement;
     initialValue?: string;
     initialEditType?: EditorType;
@@ -27,7 +27,7 @@ declare module "@toast-ui/editor" {
     plugins?: EditorPlugin[];
     customHTMLRenderer?: CustomHTMLRenderer;
     [key: string]: unknown;
-  }
+  };
 
   export default class Editor {
     constructor(options: EditorOptions);
@@ -38,14 +38,14 @@ declare module "@toast-ui/editor" {
     [method: string]: any;
   }
 
-  export interface ViewerOptions {
+  export type ViewerOptions = {
     el: HTMLElement;
     initialValue?: string;
     plugins?: EditorPlugin[];
     customHTMLRenderer?: CustomHTMLRenderer;
     extendedAutolinks?: boolean;
     [key: string]: unknown;
-  }
+  };
 
   export class Viewer {
     constructor(options: ViewerOptions);

@@ -100,6 +100,7 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 	fapp.Get("/search", root)
 	fapp.Get("/new", root)
 	fapp.Get("/note/:title", root)
+	fapp.Get("/todos", root)
 
 	// Get a specific note.
 	fapp.Get("/api/notes/:title", authenticate, func(c *fiber.Ctx) error {
@@ -219,6 +220,16 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 		}
 
 		return c.JSON(tags.List())
+	})
+
+	// Get all task list items grouped by note.
+	fapp.Get("/api/todos", authenticate, func(c *fiber.Ctx) error {
+		res, err := app.GetTodos()
+		if err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("get todos: %w", err).Error())
+		}
+
+		return c.JSON(res)
 	})
 
 	// Perform a full text search on all notes.

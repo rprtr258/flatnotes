@@ -30,10 +30,10 @@ const sortOptions = [
   constants.searchSortOptions.lastModified,
 ];
 
-interface ResultGroup {
-  name: string;
-  searchResults: SearchResult[];
-}
+type ResultGroup = {
+  name: string,
+  searchResults: SearchResult[],
+};
 
 const sortByIsGrouped = computed(() => sortBy.value === constants.searchSortOptions.title);
 
@@ -225,10 +225,7 @@ onMounted(init);
                   showHighlights ? result.titleHighlightsOrTitle : result.title
                 "
               />
-              <span
-                class="last-modified d-none d-md-block"
-                v-tooltip="'Last Modified'"
-              >
+              <span class="last-modified d-none d-md-block" v-tooltip="'Last Modified'">
                 {{ result.lastModifiedAsString }}
               </span>
             </div>

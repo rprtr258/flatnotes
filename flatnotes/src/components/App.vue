@@ -9,6 +9,7 @@ import SearchInput from "./SearchInput.vue";
 import SearchResults from "./SearchResults.vue";
 import RecentlyModified from "./RecentlyModified.vue";
 import NoteViewerEditor from "./NoteViewerEditor.vue";
+import Todos from "./Todos.vue";
 
 import Modal from "../ui/Modal.vue";
 import ToastHost from "../ui/ToastHost.vue";
@@ -27,6 +28,7 @@ const views = {
   home: 1,
   note: 2,
   search: 3,
+  todos: 4,
 } as const;
 
 const authType = ref<string | null>(null);
@@ -69,6 +71,9 @@ function route(): void {
     updateDocumentTitle("Search");
     searchTerm.value = helpers.getSearchParam(constants.params.searchTerm);
     currentView.value = views.search;
+  } else if (basePath === constants.basePaths.todos) {
+    updateDocumentTitle("Todos");
+    currentView.value = views.todos;
   } else if (basePath === constants.basePaths.new) {
     updateDocumentTitle("New Note");
     currentView.value = views.note;
@@ -217,6 +222,14 @@ onUnmounted(() => {
       <SearchResults :search-term="searchTerm" class="flex-grow-1" />
     </div>
 
+    <!-- Todos -->
+    <div
+      v-if="currentView === views.todos"
+      class="flex-grow-1 todos-view d-flex flex-column"
+    >
+      <Todos class="flex-grow-1" />
+    </div>
+
     <!-- Note -->
     <NoteViewerEditor
       v-if="currentView === views.note"
@@ -240,6 +253,10 @@ onUnmounted(() => {
 }
 
 .search-results-view {
+  max-width: 700px;
+}
+
+.todos-view {
   max-width: 700px;
 }
 

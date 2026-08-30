@@ -2,11 +2,11 @@ import { reactive } from "vue";
 
 export type ToastVariant = "default" | "danger" | "success";
 
-export interface ToastItem {
+export type ToastItem = {
   id: number;
   message: string;
   variant: ToastVariant;
-}
+};
 
 export const toasts = reactive<ToastItem[]>([]);
 

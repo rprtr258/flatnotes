@@ -276,6 +276,42 @@ func (app *App) GetTags() (set.Set[string], error) {
 	return res, nil
 }
 
+// taskListItemRE matches GFM task list items, e.g. "- [ ] todo" / "- [x] done".
+var taskListItemRE = regexp.MustCompile(`(?m)^\s*[-*+]\s+\[([ xX])]\s+(.+)$`)
+
+// GetTodos returns every task list item across all notes, grouped by note.
+func (app *App) GetTodos() ([]NoteTodosModel, error) {
+	if err := app.updateIndex(); err != nil {
+		return nil, fmt.Errorf("update index: %w", err)
+	}
+
+	res := []NoteTodosModel{}
+	for _, note := range app.Notes {
+		todos := []TodoItemModel{}
+		for _, m := range taskListItemRE.FindAllStringSubmatch(note.Content, -1) {
+			todos = append(todos, TodoItemModel{
+				Text: strings.TrimSpace(m[2]),
+				Done: m[1] != " ",
+			})
+		}
+		if len(todos) == 0 {
+			continue
+		}
+
+		res = append(res, NoteTodosModel{
+			Title:        note.Title,
+			LastModified: note.Modtime.Unix(),
+			Todos:        todos,
+		})
+	}
+
+	slices.SortFunc(res, func(i, j NoteTodosModel) int {
+		return cmp.Compare(i.Title, j.Title)
+	})
+
+	return res, nil
+}
+
 type Sort int
 
 const (

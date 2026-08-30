@@ -2,13 +2,13 @@ import { reactive } from "vue";
 
 type OkVariant = "primary" | "danger" | "warning";
 
-interface ConfirmState {
+type ConfirmState = {
   open: boolean;
   message: string;
   title: string;
   okVariant: OkVariant;
   resolve: ((value: boolean) => void) | null;
-}
+};
 
 export const confirmState = reactive<ConfirmState>({
   open: false,

@@ -101,6 +101,16 @@ function navigate(href: string, event?: Event): void {
         >A-Z</a
       >
 
+      <!-- Todos -->
+      <a
+        :href="constants.basePaths.todos"
+        class="bttn"
+        @click.prevent="navigate(constants.basePaths.todos, $event)"
+        v-tooltip="'Show All Todos'"
+        >
+        <Icon name="check2-square" />
+      </a>
+
       <!-- Search -->
       <button
         type="button"

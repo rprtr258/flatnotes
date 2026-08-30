@@ -30,3 +30,14 @@ type NotePatchModel struct {
 type ConfigModel struct {
 	AuthType string `json:"authType"`
 }
+
+type TodoItemModel struct {
+	Text string `json:"text"`
+	Done bool   `json:"done"`
+}
+
+type NoteTodosModel struct {
+	Title        string          `json:"title"`
+	LastModified int64           `json:"lastModified"`
+	Todos        []TodoItemModel `json:"todos"`
+}

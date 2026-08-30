@@ -1,11 +1,11 @@
 import type { Directive, DirectiveBinding } from "vue";
 
-interface TooltipEl extends HTMLElement {
+type TooltipEl = HTMLElement & {
   _fnTooltipShow: () => void;
   _fnTooltipHide: () => void;
   _fnTooltipKey: () => void;
   _tooltipText: string;
-}
+};
 
 function update(el: TooltipEl, binding: DirectiveBinding<string | undefined>): void {
   const text = binding.value ?? el.getAttribute("data-tooltip") ?? "";
