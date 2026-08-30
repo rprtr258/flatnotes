@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/gofiber/contrib/fiberzerolog"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/rprtr258/fun"
+	"github.com/rs/zerolog/log"
 
 	"github.com/rprtr258/flatnotes/internal"
 	"github.com/rprtr258/flatnotes/internal/config"
@@ -280,7 +280,9 @@ func Run(ctx context.Context, cfg config.Config) error {
 			}
 		},
 	})
-	app.Use(logger.New())
+	app.Use(fiberzerolog.New(fiberzerolog.Config{
+		Logger: &log.Logger,
+	}))
 	// app.Use(swagger.New(swagger.Config{
 	// 	BasePath: "/",
 	// 	FilePath: "./swagger.json", // FUCK YOU I DONT WANT TO WRITE COMMENTS AND GENERATE SHIT
@@ -299,7 +301,7 @@ func Run(ctx context.Context, cfg config.Config) error {
 	go func() {
 		<-ctx.Done()
 		if err := app.ShutdownWithContext(ctx); err != nil {
-			log.Println("shutdown", err.Error())
+			log.Err(err).Msg("shutdown")
 		}
 	}()
 

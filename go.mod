@@ -3,6 +3,7 @@ module github.com/rprtr258/flatnotes
 go 1.27.0
 
 require (
+	github.com/gofiber/contrib/fiberzerolog v1.0.3
 	github.com/gofiber/fiber/v2 v2.52.15
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/kljensen/snowball v0.10.0

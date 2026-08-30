@@ -309,6 +309,7 @@ func (app *App) Search(
 		hits = fun.MapToSlice(app.Notes, func(_ string, doc NoteDocument) fts.Hit {
 			return fts.Hit{
 				ID:    doc.ID(),
+				Tags:  nil,
 				Score: 0,
 				Terms: nil,
 			}

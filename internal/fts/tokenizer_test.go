@@ -3,7 +3,7 @@ package fts
 // import (
 // 	"testing"
 
-// 	"github.com/stretchr/testify/assert"
+// 	"github.com/stretchr/testify/require"
 // )
 
 // func TestTokenizer(t *testing.T) {
@@ -25,7 +25,7 @@ package fts
 // 		},
 // 	} {
 // 		t.Run(test.text, func(st *testing.T) {
-// 			assert.EqualValues(st, test.tokens, tokenize(test.text))
+// 			require.EqualValues(st, test.tokens, tokenize(test.text))
 // 		})
 // 	}
 // }
