@@ -11,7 +11,7 @@ run:
 
 .PHONY: watch
 watch:
-	DEBUG=1 go tool reflex --decoration=none --start-service -v -r '\.(html|go|vue|css|ts)$$' -R '/dist/' -R 'node_modules/' -- make run
+	DEBUG=1 go tool reflex --decoration=none --start-service -v -r '\.(html|go|vue|css|scss|ts|Makefile)$$' -R '/dist/' -R 'node_modules/' -- make run
 
 .PHONY: frontend
 frontend:

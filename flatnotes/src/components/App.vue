@@ -10,6 +10,7 @@ import SearchResults from "./SearchResults.vue";
 import RecentlyModified from "./RecentlyModified.vue";
 import NoteViewerEditor from "./NoteViewerEditor.vue";
 import Todos from "./Todos.vue";
+import TreeExplorer from "./TreeExplorer.vue";
 
 import Modal from "../ui/Modal.vue";
 import ToastHost from "../ui/ToastHost.vue";
@@ -181,7 +182,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="container d-flex flex-column h-100">
+  <div class="d-flex flex-column h-100">
     <!-- Search Modal -->
     <Modal v-model="searchModalOpen" :hide-header="true" :hide-footer="true">
       <SearchInput />
@@ -202,42 +203,51 @@ onUnmounted(() => {
     <!-- Login -->
     <Login v-if="currentView === views.login" class="flex-grow-1" :auth-type="authType"></Login>
 
-    <!-- Home -->
-    <div
-      v-if="currentView === views.home"
-      class="home-view align-self-center d-flex flex-column justify-content-center align-items-center flex-grow-1 w-100"
-    >
-      <Logo class="mb-3" />
-      <SearchInput :initial-value="searchTerm ?? undefined" class="search-input mb-4" />
-      <div v-if="authType != null && authType !== constants.authTypes.readOnly">
-        <RecentlyModified class="recently-modified" :max-notes="5" />
+    <!-- Main layout: sidebar + content -->
+    <div v-else class="d-flex flex-row flex-grow-1 main-layout">
+      <TreeExplorer
+        class="sidebar d-none d-md-flex"
+        :active-title="noteTitle"
+      />
+      <div class="main-content d-flex flex-column flex-grow-1">
+        <!-- Home -->
+        <div
+          v-if="currentView === views.home"
+          class="home-view align-self-center d-flex flex-column justify-content-center align-items-center flex-grow-1 w-100"
+        >
+          <Logo class="mb-3" />
+          <SearchInput :initial-value="searchTerm ?? undefined" class="search-input mb-4" />
+          <div v-if="authType != null && authType !== constants.authTypes.readOnly">
+            <RecentlyModified class="recently-modified" :max-notes="5" />
+          </div>
+        </div>
+
+        <!-- Search Results -->
+        <div
+          v-if="currentView === views.search"
+          class="flex-grow-1 search-results-view d-flex flex-column"
+        >
+          <SearchResults :search-term="searchTerm" class="flex-grow-1" />
+        </div>
+
+        <!-- Todos -->
+        <div
+          v-if="currentView === views.todos"
+          class="flex-grow-1 todos-view d-flex flex-column"
+        >
+          <Todos class="flex-grow-1" />
+        </div>
+
+        <!-- Note -->
+        <NoteViewerEditor
+          v-if="currentView === views.note"
+          class="flex-grow-1"
+          :title-to-load="noteTitle"
+          :auth-type="authType"
+          @note-deleted="noteDeletedToast"
+        ></NoteViewerEditor>
       </div>
     </div>
-
-    <!-- Search Results -->
-    <div
-      v-if="currentView === views.search"
-      class="flex-grow-1 search-results-view d-flex flex-column"
-    >
-      <SearchResults :search-term="searchTerm" class="flex-grow-1" />
-    </div>
-
-    <!-- Todos -->
-    <div
-      v-if="currentView === views.todos"
-      class="flex-grow-1 todos-view d-flex flex-column"
-    >
-      <Todos class="flex-grow-1" />
-    </div>
-
-    <!-- Note -->
-    <NoteViewerEditor
-      v-if="currentView === views.note"
-      class="flex-grow-1"
-      :title-to-load="noteTitle"
-      :auth-type="authType"
-      @note-deleted="noteDeletedToast"
-    ></NoteViewerEditor>
 
     <!-- Global overlays -->
     <ToastHost />
@@ -247,6 +257,21 @@ onUnmounted(() => {
 
 <style lang="scss" scoped>
 @import "../colours";
+
+.main-layout {
+  min-height: 0;
+}
+
+.sidebar {
+  width: 240px;
+  min-width: 240px;
+  border-right: 1px solid var(--colour-border);
+  overflow: hidden;
+}
+
+.main-content {
+  min-height: 0;
+}
 
 .home-view {
   max-width: 500px;
