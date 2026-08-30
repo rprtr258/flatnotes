@@ -1,11 +1,13 @@
 import { Facet, type Extension, type EditorState } from "@codemirror/state";
 import {
   Decoration,
+  EditorView,
   WidgetType,
   type DecorationSet,
 } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
-import type { SyntaxNodeRef } from "@lezer/common";
+import type { SyntaxNode, SyntaxNodeRef } from "@lezer/common";
+import { eventBus } from "../../eventBus";
 import { decoratorStateField, isCursorInRange } from "../util";
 
 // Lezer child node names (verified in node_modules/@lezer/markdown):
@@ -139,9 +141,58 @@ function resolveImage(
   return null;
 }
 
-// Hides the surrounding markup of inline links and renders images inline.
+// Builds the SPA note URL for a note path, matching Note.href and
+// TreeExplorer.noteHref so wikilinks route through the app's /note handler.
+function noteHref(notePath: string): string {
+  return "/note/" + notePath.split("/").map(encodeURIComponent).join("/");
+}
+
+// Resolves a Link node to a navigation href. A standard `[text](url)` link
+// yields its URL; a URL-less link (e.g. a `[[note path]]` wikilink, which the
+// parser exposes as a bracketed Link with no URL child) yields the note URL
+// built from the link text. Returns null for unrecognised shapes.
+function linkHref(state: EditorState, node: SyntaxNode): string | null {
+  for (let child = node.firstChild; child; child = child.nextSibling) {
+    if (child.name === "URL") return state.sliceDoc(child.from, child.to);
+  }
+  const range = linkTextRange(state, node);
+  if (!range) return null;
+  return noteHref(state.sliceDoc(range.textFrom, range.textTo));
+}
+
+// Ensures a bare URL is openable: leaves scheme-bearing URLs (http,
+// mailto, data, ...) and protocol-relative `//host` URLs alone, and
+// prefixes `https://` for schemeless hosts (`www.example.com`).
+function normalizeUrl(url: string): string {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(url)) return url;
+  if (url.startsWith("//")) return "https:" + url;
+  return "https://" + url;
+}
+
+// Navigates to a link href. Note routes go through the SPA navigate event
+// (so ctrl/cmd-click still opens a new tab via the app's handler); everything
+// else — external URLs, static files, attachments — opens in a new tab.
+function openLink(href: string, event?: MouseEvent): void {
+  if (href.startsWith("/note/")) {
+    eventBus.emit("navigate", { href, event });
+  } else {
+    window.open(href, "_blank", "noopener,noreferrer");
+  }
+}
+
+// Resolves a clicked node to a navigation href. Handles bracketed Links
+// (`[text](url)` / `[[note]]`) and bare/autolink URLs (a `URL` node, whether
+// standalone or inside an `Autolink` — the URL text is the address).
+function resolveClickHref(state: EditorState, node: SyntaxNode): string | null {
+  if (node.name === "Link") return linkHref(state, node);
+  if (node.name === "URL") return normalizeUrl(state.sliceDoc(node.from, node.to));
+  return null;
+}
+
+// Hides the surrounding markup of inline links, renders images inline, and
+// navigates (instead of placing the cursor) when a rendered link is clicked.
 export function linkPlugin(): Extension {
-  return decoratorStateField((state: EditorState): DecorationSet => {
+  const decorationsField = decoratorStateField((state: EditorState): DecorationSet => {
     const decorations: { from: number; to: number; value: Decoration }[] = [];
     const noteTitle = state.facet(noteTitleFacet);
     syntaxTree(state).iterate({
@@ -173,6 +224,22 @@ export function linkPlugin(): Extension {
           }
           return;
         }
+        if (node.name === "URL") {
+          // Bare/autolink URLs (standalone `https://x.com` or the inner
+          // URL of `<https://x.com>`). URLs that belong to a Link/Image are
+          // handled (or hidden) by their parent branch.
+          const parent = node.node.parent;
+          if (parent && (parent.name === "Link" || parent.name === "Image")) {
+            return;
+          }
+          if (isCursorInRange(state, node.from, node.to)) return;
+          decorations.push({
+            from: node.from,
+            to: node.to,
+            value: Decoration.mark({ class: "sb-link" }),
+          });
+          return;
+        }
         if (node.name !== "Link") return;
         if (isCursorInRange(state, node.from, node.to)) return;
         const range = linkTextRange(state, node);
@@ -200,4 +267,35 @@ export function linkPlugin(): Extension {
       true,
     );
   });
+  // Clicking a rendered link navigates to its address instead of moving the
+  // cursor. Handled on mousedown (CodeMirror places the cursor on mousedown,
+  // so returning true here is what actually suppresses that).
+  const clickHandler = EditorView.domEventHandlers({
+    mousedown(event: MouseEvent, view: EditorView): boolean {
+      if (event.button !== 0) return false;
+      const domTarget = event.target;
+      if (!(domTarget instanceof Element) || !domTarget.closest(".sb-link")) {
+        return false;
+      }
+      const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+      if (pos == null) return false;
+      let target: SyntaxNode | null = null;
+      for (
+        let n: SyntaxNode | null = syntaxTree(view.state).resolve(pos, 1);
+        n;
+        n = n.parent
+      ) {
+        if (n.name === "Link" || n.name === "URL") {
+          target = n;
+          break;
+        }
+      }
+      if (!target) return false;
+      const href = resolveClickHref(view.state, target);
+      if (!href) return false;
+      openLink(href, event);
+      return true;
+    },
+  });
+  return [decorationsField, clickHandler];
 }
