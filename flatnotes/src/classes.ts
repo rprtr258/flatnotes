@@ -14,7 +14,7 @@ export class Note {
   }
 
   get href(): string {
-    return `${basePaths.note}/${encodeURIComponent(this.title)}`;
+    return `${basePaths.note}/${this.title.split("/").map(encodeURIComponent).join("/")}`;
   }
 
   get lastModifiedAsDate(): Date {

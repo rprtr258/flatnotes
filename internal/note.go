@@ -69,15 +69,34 @@ func noteFilepath(dir, title string) string {
 	return filepath.Join(dir, title+_markdownExt)
 }
 
+// removeEmptyParents removes empty directories from parent up to (but not
+// including) dir, left behind after a note is moved or deleted.
+func removeEmptyParents(dir, parent string) {
+	for {
+		rel, err := filepath.Rel(dir, parent)
+		if err != nil || rel == "." || rel == "" || strings.HasPrefix(rel, "..") {
+			return
+		}
+		if err := os.Remove(parent); err != nil {
+			return // not empty or missing — stop
+		}
+		parent = filepath.Dir(parent)
+	}
+}
+
 func createNote(dir, title, content string) (Note, time.Time, error) {
 	note := Note{
 		Title:    title,
 		NotesDir: dir,
 	}
 
-	filepath := noteFilepath(dir, note.Title)
+	notePath := noteFilepath(dir, note.Title)
 
-	noteFile, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
+	if err := os.MkdirAll(filepath.Dir(notePath), 0o755); err != nil {
+		return Note{}, time.Time{}, fmt.Errorf("create dirs: %w", err)
+	}
+
+	noteFile, err := os.OpenFile(notePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
 	if err != nil {
 		if os.IsExist(err) {
 			return Note{}, time.Time{}, ErrTitleExists
@@ -134,14 +153,20 @@ func (n Note) LastModified() (time.Time, error) {
 // Editable Properties
 func (n *Note) SetTitle(newTitle string) error {
 	oldTitle := n.Title
+	oldFilepath := noteFilepath(n.NotesDir, oldTitle)
+	newFilepath := noteFilepath(n.NotesDir, newTitle)
+
+	if err := os.MkdirAll(filepath.Dir(newFilepath), 0o755); err != nil {
+		return fmt.Errorf("create dirs: %w", err)
+	}
+
 	n.Title = newTitle
-	if err := os.Rename(
-		noteFilepath(n.NotesDir, oldTitle),
-		noteFilepath(n.NotesDir, newTitle),
-	); err != nil {
+	if err := os.Rename(oldFilepath, newFilepath); err != nil {
+		n.Title = oldTitle
 		return fmt.Errorf("rename %q to %q: %w", oldTitle, newTitle, err)
 	}
 
+	removeEmptyParents(n.NotesDir, filepath.Dir(oldFilepath))
 	return nil
 }
 
@@ -160,5 +185,10 @@ func (n Note) SetContent(newContent []byte) error {
 }
 
 func (n Note) Delete() error {
-	return os.Remove(noteFilepath(n.NotesDir, n.Title))
+	notePath := noteFilepath(n.NotesDir, n.Title)
+	if err := os.Remove(notePath); err != nil {
+		return err
+	}
+	removeEmptyParents(n.NotesDir, filepath.Dir(notePath))
+	return nil
 }

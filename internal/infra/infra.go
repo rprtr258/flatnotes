@@ -99,12 +99,18 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 	fapp.Get("/login", root)
 	fapp.Get("/search", root)
 	fapp.Get("/new", root)
-	fapp.Get("/note/:title", root)
+	fapp.Get("/note/*", root)
 	fapp.Get("/todos", root)
 
+	// noteTitle extracts the (possibly nested) note title from a wildcard route
+	// param and unescapes it.
+	noteTitle := func(c *fiber.Ctx) (string, error) {
+		return url.QueryUnescape(strings.TrimPrefix(c.Params("*"), "/"))
+	}
+
 	// Get a specific note.
-	fapp.Get("/api/notes/:title", authenticate, func(c *fiber.Ctx) error {
-		title, err := url.QueryUnescape(c.Params("title"))
+	fapp.Get("/api/notes/*", authenticate, func(c *fiber.Ctx) error {
+		title, err := noteTitle(c)
 		if err != nil {
 			return fiber.NewError(fiber.StatusBadRequest, fmt.Errorf("invalid title: %w", err).Error())
 		}
@@ -168,8 +174,8 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 			return c.JSON(res)
 		})
 
-		fapp.Patch("/api/notes/:title", authenticate, func(c *fiber.Ctx) error {
-			title, err := url.QueryUnescape(c.Params("title"))
+		fapp.Patch("/api/notes/*", authenticate, func(c *fiber.Ctx) error {
+			title, err := noteTitle(c)
 			if err != nil {
 				return fiber.NewError(fiber.StatusBadRequest, fmt.Errorf("invalid title: %w", err).Error())
 			}
@@ -194,8 +200,8 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 			return c.JSON(res)
 		})
 
-		fapp.Delete("/api/notes/:title", authenticate, func(c *fiber.Ctx) error {
-			title, err := url.QueryUnescape(c.Params("title"))
+		fapp.Delete("/api/notes/*", authenticate, func(c *fiber.Ctx) error {
+			title, err := noteTitle(c)
 			if err != nil {
 				return fiber.NewError(fiber.StatusBadRequest, fmt.Errorf("invalid title: %w", err).Error())
 			}
@@ -219,7 +225,7 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 			return fiber.NewError(fiber.StatusInternalServerError, fmt.Errorf("get tags: %w", err).Error())
 		}
 
-		return c.JSON(tags.List())
+		return c.JSON(tags)
 	})
 
 	// Get all task list items grouped by note.

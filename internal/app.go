@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -25,15 +26,27 @@ var (
 )
 
 var (
-	_reTags       = regexp.MustCompile(`(?:^#|\s#)(\w+)(?:\s|$)`)
+	_reTags       = regexp.MustCompile(`(?:^#|\s#)(\w+)(?:\s|$)`) // TODO: get from metadata
 	_reCodeblocks = regexp.MustCompile("`{1,3}.*?`{1,3}" /*, re.DOTALL*/)
 )
 
-// Return False if the declared title contains any of the following
-// characters: <>:"/\|?*
+// isValidTitle reports whether title is a valid (possibly nested) note
+// title. The '/' separator is allowed for nesting. Backslash, control chars,
+// path-traversal ("..") and empty path segments are rejected.
 func isValidTitle(title string) bool {
-	const _invalidChars = `<>:"/\|?*` + "\n\r\t"
-	return !strings.ContainsAny(title, _invalidChars)
+	if title == "" {
+		return false
+	}
+	const _invalidChars = `<>:"\|?*` + "\n\r\t"
+	if strings.ContainsAny(title, _invalidChars) {
+		return false
+	}
+	for _, part := range strings.Split(title, "/") {
+		if part == "" || part == ".." || part == "." {
+			return false
+		}
+	}
+	return true
 }
 
 // substring return part of a string
@@ -68,12 +81,6 @@ func extractTags(content string) (string, set.Set[string]) {
 		tagsSet.Add(strings.ToLower(tag))
 	}
 	return contentExTags, tagsSet
-}
-
-func stripExt(filename string) string {
-	_, fname := filepath.Split(filename)
-	name, _ := strings.CutSuffix(fname, _markdownExt)
-	return name
 }
 
 type App struct {
@@ -179,23 +186,34 @@ func (app *App) getNote(title string) (Note, error) {
 	}, nil
 }
 
-// Return a list containing a Note object for every file in the notes
-// directory.
+// Return a list containing a Note object for every markdown file in the
+// notes directory, including those in nested subdirectories.
 func (app *App) getNotes() ([]Note, error) {
-	matches, err := filepath.Glob(filepath.Join(app.Dir, "*"+_markdownExt))
-	if err != nil {
-		return nil, fmt.Errorf("glob: %w", err)
-	}
-
 	res := []Note{}
-	for _, match := range matches {
-		_, file := filepath.Split(match)
-		note, err := app.getNote(stripExt(file))
+	err := filepath.WalkDir(app.Dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil, fmt.Errorf("new note %q: %w", file, err)
+			return err
 		}
-
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, _markdownExt) {
+			return nil
+		}
+		rel, err := filepath.Rel(app.Dir, path)
+		if err != nil {
+			return fmt.Errorf("rel path %q: %w", path, err)
+		}
+		title := filepath.ToSlash(strings.TrimSuffix(rel, _markdownExt))
+		note, err := app.getNote(title)
+		if err != nil {
+			return fmt.Errorf("new note %q: %w", title, err)
+		}
 		res = append(res, note)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("walk: %w", err)
 	}
 	return res, nil
 }
@@ -264,16 +282,23 @@ func (app *App) updateIndex() error {
 }
 
 // Return a list of all indexed tags.
-func (app *App) GetTags() (set.Set[string], error) {
+func (app *App) GetTags() ([]string, error) {
 	if err := app.updateIndex(); err != nil {
-		return set.Set[string]{}, err
+		return nil, err
 	}
 
-	res := set.New[string](0)
+	res := map[string]int{}
 	for _, note := range app.Notes {
-		res.Merge(note.Tags)
+		for tag := range note.Tags.Iter() {
+			res[tag]++
+		}
 	}
-	return res, nil
+
+	entries := fun.Entries(res)
+	slices.SortFunc(entries, func(a, b fun.Pair[string, int]) int {
+		return b.V - a.V
+	})
+	return fun.Map[string](func(e fun.Pair[string, int]) string { return e.K }, entries...), nil
 }
 
 // taskListItemRE matches GFM task list items, e.g. "- [ ] todo" / "- [x] done".

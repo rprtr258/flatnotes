@@ -50,7 +50,7 @@ function load(): void {
 }
 
 function noteHref(title: string): string {
-  return `${constants.basePaths.note}/${encodeURIComponent(title)}`;
+  return `${constants.basePaths.note}/${title.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 function openNote(href: string, event?: Event): void {

@@ -21,7 +21,6 @@ Log into the [demo site](https://demo.flatnotes.io) and take a look around. *Not
 flatnotes is designed to be a distraction-free note-taking app that puts your note content first. This means:
 
 * A clean and simple user interface.
-* No folders, notebooks or anything like that. Just all of your notes, backed by powerful search and tagging functionality.
 * Quick access to a full-text search from anywhere in the app (keyboard shortcut "/").
 
 Another key design principle is not to take your notes hostage. Your notes are just markdown files. There's no database, proprietary formatting, complicated folder structures or anything like that. You're free at any point to just move the files elsewhere and use another app.
@@ -33,8 +32,6 @@ Equally, the only thing flatnotes caches is the search index and that's incremen
 * Note "tagging" functionality.
 * Light/dark themes.
 * Restful API.
-
-See [the wiki](https://github.com/rprtr258/flatnotes/wiki) for more details.
 
 ## Getting Started
 ### Using Docker

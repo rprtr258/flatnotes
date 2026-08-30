@@ -192,7 +192,7 @@ function saveDraft(): void {
   }
 }
 
-const reservedTitleCharacters = /[<>:"/\\|?*]/;
+const reservedTitleCharacters = /[<>:"\\|?*]/;
 
 function existingTitleToast(): void {
   toast("A note with this title already exists. Please try again with a new title.", { variant: "danger" });
@@ -242,7 +242,7 @@ function saveTitle(showToast: boolean): void {
   if (reservedTitleCharacters.test(newTitle)) {
     if (showToast) {
       viewTitleEl.value.innerText = oldTitle;
-      toast('Due to filename restrictions, the following characters are not allowed in a note title: <>:"/\\\\|?*', {
+      toast('Due to filename restrictions, the following characters are not allowed in a note title: <>:"\\\\|?*', {
         variant: "danger",
       });
     }
@@ -304,9 +304,9 @@ function saveNote(): void {
     return;
   }
 
-  const reservedCharacters = /[<>:"/\\|?*]/;
+  const reservedCharacters = /[<>:"\\|?*]/;
   if (reservedCharacters.test(titleInput.value)) {
-    toast('Due to filename restrictions, the following characters are not allowed in a note title: <>:"/\\|?*', {
+    toast('Due to filename restrictions, the following characters are not allowed in a note title: <>:"\\|?*', {
       variant: "danger",
     });
     return;

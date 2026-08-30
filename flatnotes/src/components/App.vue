@@ -78,7 +78,7 @@ function route(): void {
     updateDocumentTitle("New Note");
     currentView.value = views.note;
   } else if (basePath === constants.basePaths.note) {
-    noteTitle.value = decodeURIComponent(path[2]);
+    noteTitle.value = decodeURIComponent(path.slice(2).join("/"));
     updateDocumentTitle(noteTitle.value);
     currentView.value = views.note;
   } else if (basePath === constants.basePaths.login) {
