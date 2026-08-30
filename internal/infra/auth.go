@@ -11,8 +11,6 @@ import (
 	"github.com/rprtr258/flatnotes/internal/config"
 )
 
-const JWT_ALGORITHM = "HS256"
-
 // var oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/token")
 
 type claims struct {
@@ -25,7 +23,7 @@ func CreateAccessToken(config config.Config, username string) (string, error) {
 			Subject:   username,
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(config.SessionExpiry)),
 		},
-	}).SignedString([]byte(config.SessionKey)) //(to_encode, config.session_key, JWT_ALGORITHM)
+	}).SignedString([]byte(config.SessionKey)) // (to_encode, config.session_key, JWT_ALGORITHM)
 }
 
 func validateToken(config config.Config, token string /*= Depends(oauth2_scheme)*/) error {
@@ -67,17 +65,18 @@ func Authenticate(cfg config.Config, data internal.LoginModel, lastUsedTOTP *str
 	if cfg.Username != data.Username || expectedPassword != data.Password ||
 		// Prevent TOTP from being reused
 		cfg.AuthType == config.AuthTypeTOTP && *lastUsedTOTP != "" && currentTOTP == *lastUsedTOTP {
-		return internal.TokenModel{}, fmt.Errorf("Incorrect login credentials.")
+		return internal.TokenModel{}, fmt.Errorf("incorrect login credentials")
 	}
 
 	accessToken, err := CreateAccessToken(cfg, cfg.Username)
 	if err != nil {
-		return internal.TokenModel{}, fmt.Errorf("create access token: %s", err.Error())
+		return internal.TokenModel{}, fmt.Errorf("create access token: %w", err)
 	}
 
 	if cfg.AuthType == config.AuthTypeTOTP {
 		*lastUsedTOTP = currentTOTP
 	}
+
 	return internal.TokenModel{
 		AccessToken: accessToken,
 		TokenType:   "bearer",

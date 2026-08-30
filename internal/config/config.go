@@ -27,14 +27,42 @@ type Config struct {
 
 func New() (Config, error) {
 	authType := getAuthType()
-	authNeeded := !fun.Contains(authType, AuthTypeNone, AuthTypeReadOnly)
-	return Config{
-		DataPath:      getEnv[string]("FLATNOTES_PATH", false, "/data"),
-		AuthType:      authType,
-		Username:      getEnv[string]("FLATNOTES_USERNAME", authNeeded, ""),
-		Password:      getEnv[string]("FLATNOTES_PASSWORD", authNeeded, ""),
-		SessionKey:    getEnv[string]("FLATNOTES_SECRET_KEY", authNeeded, ""),
-		SessionExpiry: time.Duration(getEnv[int]("FLATNOTES_SESSION_EXPIRY_DAYS", false, 30)) * 24 * time.Hour,
-		TotpKey:       getTOTPKey(authType),
-	}, nil
+	authNeeded := authType.Map(func(authType AuthType) bool {
+		return !fun.Contains(authType, AuthTypeNone, AuthTypeReadOnly)
+	})
+	dataPath := getEnvStr("FLATNOTES_PATH", false, "/data")
+	username := authNeeded.FlatMap(func(authNeeded bool) fun.Result[string] {
+		return getEnvStr("FLATNOTES_USERNAME", authNeeded, "")
+	})
+	password := authNeeded.FlatMap(func(authNeeded bool) fun.Result[string] {
+		return getEnvStr("FLATNOTES_PASSWORD", authNeeded, "")
+	})
+	sessionKey := authNeeded.FlatMap(func(authNeeded bool) fun.Result[string] {
+		return getEnvStr("FLATNOTES_SECRET_KEY", authNeeded, "")
+	})
+	sessionExpiryDays := getEnvInt("FLATNOTES_SESSION_EXPIRY_DAYS", 30)
+	totpKey := authType.FlatMap(getTotpKey)
+	return dataPath.FlatMap(func(dataPath string) fun.Result[Config] {
+		return authType.FlatMap(func(authType AuthType) fun.Result[Config] {
+			return username.FlatMap(func(username string) fun.Result[Config] {
+				return password.FlatMap(func(password string) fun.Result[Config] {
+					return sessionKey.FlatMap(func(sessionKey string) fun.Result[Config] {
+						return sessionExpiryDays.FlatMap(func(sessionExpiryDays int) fun.Result[Config] {
+							return totpKey.FlatMap(func(totpKey string) fun.Result[Config] {
+								return fun.Ok(Config{
+									DataPath:      dataPath,
+									AuthType:      authType,
+									Username:      username,
+									Password:      password,
+									SessionKey:    sessionKey,
+									SessionExpiry: time.Duration(sessionExpiryDays) * 24 * time.Hour,
+									TotpKey:       totpKey,
+								})
+							})
+						})
+					})
+				})
+			})
+		})
+	}).Unpack()
 }

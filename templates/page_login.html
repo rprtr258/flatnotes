@@ -1,0 +1,57 @@
+{{ $authType := "none" }}
+<div class="container flex-column h-100">
+  // authType,
+  // // class="flex-grow-1"
+  <div class="flex-column justify-content-center align-items-center"},
+    {{ template "logo" }}
+    {{ if ne $authType "none" }}
+      <div class="flex-column justify-content-center align-items-center">
+        <form class="login-form flex-column align-items-center">
+          <div>
+            <!-- Username -->
+            <input
+              id="username"
+              type="text"
+              placeholder="Username"
+              class="form-control"
+              autocomplete="username"
+              autofocus=""
+              required=""
+            >
+            <!-- Password -->
+            <input
+              id="password"
+              type="password"
+              placeholder="Password"
+              class="form-control"
+              autocomplete="current-password"
+              required=""
+            >
+            <!-- 2FA -->
+            {{ if eq $authType "totp" }}
+              <input
+                id="totp"
+                type="text"
+                placeholder="2FA Code"
+                class="form-control"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                autocomplete="one-time-code"
+              >
+            {{ end }}
+          </div>
+          <!-- Remember Me -->
+          <div class="form-check">
+            <input
+              type="checkbox"
+              class="form-check-input"
+              id="rememberMe"
+            >
+            <label class="form-check-label" for="rememberMe">Remember Me</label>
+          </div>
+          <button class="bttn" type="submit">{{ template "icon" "box-arrow-in-right"}}Log In</button>
+        </form>
+      </div>
+    {{ end }}
+  </div>
+</div>

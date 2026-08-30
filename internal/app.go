@@ -141,10 +141,6 @@ func (app *App) newSearchResult(hit fts.Hit) (SearchResult, error) {
 		// }
 	}
 
-	replacer := strings.NewReplacer(
-		"<mark>", `<b class="match term0">`,
-		"</mark>", `</b>`,
-	)
 	postProcessHighlight := func(s string) string {
 		lines := strings.Split(s, "\n")
 		lines = fun.Filter(func(line string) bool {
@@ -155,7 +151,7 @@ func (app *App) newSearchResult(hit fts.Hit) (SearchResult, error) {
 			j := strings.Index(line, "<mark>")
 			lines[i] = substring(line, j-100, 300)
 		}
-		return replacer.Replace(strings.Join(lines, "<br>"))
+		return strings.Join(lines, "<br>")
 	}
 
 	return SearchResult{
@@ -209,7 +205,7 @@ func (app *App) updateIndex() error {
 		idxFilepath := filepath.Join(app.Dir, idxFilename)
 		if _, err := os.Stat(idxFilepath); os.IsNotExist(err) {
 			// Delete missing
-			app.Index.Delete(id)
+			app.Index.Delete(doc.ID())
 			log.Info().Str("id", id).Msg("removed from index")
 		} else if stat, err := os.Stat(idxFilepath); err == nil && stat.ModTime().After(doc.Modtime) {
 			note, err := app.getNote(id)
@@ -291,6 +287,12 @@ func (o Sort) String() string {
 	}[o]
 }
 
+var SortOptions = []Sort{
+	SortScore,
+	SortTitle,
+	SortLastModified,
+}
+
 type Order string
 
 const (
@@ -300,12 +302,12 @@ const (
 )
 
 type SearchResultModel struct {
-	Score             float64  `json:"score"`
-	Title             string   `json:"title"`
-	LastModified      int64    `json:"lastModified"`
-	TitleHighlights   *string  `json:"titleHighlights"`
-	ContentHighlights *string  `json:"contentHighlights"`
-	TagMatches        []string `json:"tagMatches"`
+	Note              NoteDocument
+	SearchResult      SearchResult
+	LastModified      time.Time
+	TitleHighlights   string
+	ContentHighlights string
+	TagMatches        []string
 }
 
 // Search the index for the given term.
@@ -378,18 +380,16 @@ func (app *App) Search(
 			return SearchResultModel{}, fmt.Errorf("get last modified time %q: %w", searchRes.Title, err)
 		}
 
-		toOption := func(s string) *string {
-			return fun.IF(s == "", nil, &s)
-		}
 		return SearchResultModel{
-			Score:             searchRes.Score,
-			Title:             searchRes.Title,
-			LastModified:      modtime.Unix(),
-			TitleHighlights:   toOption(searchRes.TitleHighlights),
-			ContentHighlights: toOption(searchRes.ContentHighlights),
+			Note:              app.Notes[hit.ID],
+			SearchResult:      searchRes,
+			LastModified:      modtime,
+			TitleHighlights:   searchRes.TitleHighlights,
+			ContentHighlights: searchRes.ContentHighlights,
 			TagMatches:        searchRes.TagMatches,
 		}, nil
-	}, hits...)
+	}, hits...,
+	)
 }
 
 func (app *App) GetNote(title string) (NoteContentResponseModel, error) {

@@ -1,55 +1,64 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
 
-	"github.com/rs/zerolog/log"
+	"github.com/rprtr258/fun"
 )
 
-// Get an environment variable.
-func getEnv[T interface {
-	string | int
-}](key string, mandatory bool, defaultT T) T {
+func getEnvStr(key string, mandatory bool, defaultT string) fun.Result[string] {
+	value, ok := os.LookupEnv(key)
+	if ok {
+		return fun.Ok(value)
+	}
+
+	if mandatory {
+		return fun.Err[string](fmt.Errorf("environment variable %s must be set", key))
+	}
+
+	return fun.Ok(defaultT)
+}
+
+func getEnvInt(key string, defaultT int) fun.Result[int] {
 	value, ok := os.LookupEnv(key)
 	if !ok {
-		if mandatory {
-			log.Fatal().Str("env", key).Msg("environment variable must be set")
-		}
-		return defaultT
+		return fun.Ok(defaultT)
 	}
 
-	if _, ok := any(*new(T)).(int); ok {
-		res, err := strconv.Atoi(value)
-		if err != nil {
-			log.Fatal().Str("env", key).Str("val", value).Msg("invalid value")
-		}
-		return any(res).(T)
+	res, err := strconv.Atoi(value)
+	if err != nil {
+		return fun.Err[int](fmt.Errorf("invalid value %q for %s", value, key))
 	}
-	return any(value).(T)
+
+	return fun.Ok(res)
 }
 
-func getAuthType() AuthType {
-	const key = "FLATNOTES_AUTH_TYPE"
-	rawAuthType := getEnv[string](key, false, string(AuthTypePassword))
-	switch authType := AuthType(strings.ToLower(rawAuthType)); authType {
-	case AuthTypeNone, AuthTypeReadOnly, AuthTypePassword, AuthTypeTOTP:
-		return authType
-	default:
-		variants := strings.Join([]string{
-			string(AuthTypeNone),
-			string(AuthTypeReadOnly),
-			string(AuthTypePassword),
-			string(AuthTypeTOTP),
-		}, ", ")
-		log.Fatal().Str("env", key).Str("val", rawAuthType).Msg("invalid value, must be one of: " + variants)
+func getAuthType() fun.Result[AuthType] {
+	const _key = "FLATNOTES_AUTH_TYPE"
+	rawAuthType := getEnvStr(_key, false, string(AuthTypePassword))
+	if rawAuthType.Err != nil {
+		return fun.Err[AuthType](rawAuthType.Err)
 	}
-	panic("unreachable")
+
+	authType := AuthType(strings.ToLower(rawAuthType.Value))
+	if fun.Contains(authType, AuthTypeNone, AuthTypeReadOnly, AuthTypePassword, AuthTypeTOTP) {
+		return fun.Ok(authType)
+	}
+
+	variants := strings.Join([]string{
+		string(AuthTypeNone),
+		string(AuthTypeReadOnly),
+		string(AuthTypePassword),
+		string(AuthTypeTOTP),
+	}, ", ")
+	return fun.Err[AuthType](fmt.Errorf("Invalid value %s for %s. Must be one of{ "+variants+".", rawAuthType.Value, _key))
 }
 
-func getTOTPKey(authType AuthType) string {
-	totpKey := getEnv[string]("FLATNOTES_TOTP_KEY", authType == AuthTypeTOTP, "")
+func getTotpKey(authType AuthType) fun.Result[string] {
+	totpKey := getEnvStr("FLATNOTES_TOTP_KEY", authType == AuthTypeTOTP, "")
 	// if totpKey!=nil {
 	// 	return b32encode(totpKey.encode("utf-8"))
 	// }

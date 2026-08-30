@@ -1,0 +1,28 @@
+{{ define "content" }}
+{{ $maxNotes := 5 }}
+<div class="w-full flex-column">
+  {{ template "navbar" . }}
+  <div class="flex flex-col justify-center flex-grow-1 w-100">
+    <div class="flex justify-center">
+      {{ template "search-input" "" }}
+    </div>
+    {{ if ne .AuthType "read_only" }}
+      <div class="flex justify-center">
+        <div class="flex flex-col text-center">
+          <p class="mini-header">RECENTLY MODIFIED</p>
+          {{ range (slice .Notes 0 $maxNotes) }}
+            {{ $title := .Note.Title }}
+            <a class="mini-header" href="/note/{{ $title }}">{{ $title }}</a>
+          {{ end }}
+        </div>
+        <div class="flex flex-col text-center">
+          <p class="mini-header">TAGS</p>
+          {{ range .Tags }}
+            <a class="mini-header">#{{ . }}</a>
+          {{ end }}
+        </div>
+      </div>
+    {{ end }}
+  </div>
+</div>
+{{ end }}
