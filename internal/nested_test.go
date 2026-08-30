@@ -7,12 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNestedNotes(t *testing.T) {
-	dir := t.TempDir()
-	app, err := New(dir)
-	require.NoError(t, err)
-
-	// nested title is now valid
+func TestIsValidTitle(t *testing.T) {
 	for _, title := range []string{"folder/sub note"} {
 		require.True(t, isValidTitle(title))
 	}
@@ -24,21 +19,23 @@ func TestNestedNotes(t *testing.T) {
 	} {
 		require.False(t, isValidTitle(title))
 	}
+}
+
+func TestNestedNotes(t *testing.T) {
+	dir := t.TempDir()
+	app := use(New(dir))(t)
 
 	// create nested note
-	_, err = app.CreateNote("projects/flatnotes/ideas", "# ideas\n#tag")
-	require.NoError(t, err)
+	use(app.CreateNote("projects/flatnotes/ideas", "# ideas\n#tag"))(t)
 	require.FileExists(t, filepath.Join(dir, "projects", "flatnotes", "ideas.md"))
 
 	// it appears in getNotes (recursive)
-	notes, err := app.getNotes()
-	require.NoError(t, err)
+	notes := use(app.getNotes())(t)
 	require.Len(t, notes, 1)
 	require.Equal(t, "projects/flatnotes/ideas", notes[0].Title)
 
 	// read it back
-	got, err := app.GetNote("projects/flatnotes/ideas")
-	require.NoError(t, err)
+	got := use(app.GetNote("projects/flatnotes/ideas"))(t)
 	require.Equal(t, "projects/flatnotes/ideas", got.Title)
 	require.Contains(t, got.Content, "ideas")
 
@@ -47,8 +44,7 @@ func TestNestedNotes(t *testing.T) {
 	require.Contains(t, app.Notes, "projects/flatnotes/ideas")
 
 	// rename across a new nested path
-	_, err = app.UpdateNote("projects/flatnotes/ideas", NotePatchModel{NewTitle: new("archive/old/ideas2")})
-	require.NoError(t, err)
+	use(app.UpdateNote("projects/flatnotes/ideas", NotePatchModel{NewTitle: new("archive/old/ideas2")}))(t)
 	require.FileExists(t, filepath.Join(dir, "archive", "old", "ideas2.md"))
 	// old empty dirs cleaned up
 	require.NoDirExists(t, filepath.Join(dir, "projects"))
@@ -60,12 +56,11 @@ func TestNestedNotes(t *testing.T) {
 
 func TestNestedSearch(t *testing.T) {
 	dir := t.TempDir()
-	app, err := New(dir)
-	require.NoError(t, err)
-	_, err = app.CreateNote("docs/readme", "searchable needle here")
-	require.NoError(t, err)
-	res, err := app.Search("needle", SortScore, OrderNone, 0)
-	require.NoError(t, err)
+
+	app := use(New(dir))(t)
+
+	use(app.CreateNote("docs/readme", "searchable needle here"))(t)
+	res := use(app.Search("needle", SortScore, OrderNone, 0))(t)
 	require.Len(t, res, 1)
 	require.Equal(t, "docs/readme", res[0].Title)
 }

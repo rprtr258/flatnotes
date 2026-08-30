@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode/utf8"
 	"time"
 
 	"github.com/rprtr258/fun"
@@ -160,8 +161,9 @@ func (app *App) newSearchResult(hit fts.Hit) (SearchResult, error) {
 		}, lines...)
 		lines = fun.Subslice(0, 3, lines...)
 		for i, line := range lines {
-			j := strings.Index(line, "<mark>")
-			lines[i] = substring(line, j-100, 300)
+			jBytes := strings.Index(line, "<mark>")
+			jRunes := utf8.RuneCountInString(line[:jBytes])
+			lines[i] = substring(line, jRunes-100, 300)
 		}
 		return replacer.Replace(strings.Join(lines, "<br>"))
 	}

@@ -37,8 +37,11 @@ watch(
     if (open) {
       document.body.classList.add("modal-open");
       await nextTick();
-      // focus the dialog for keyboard escape
-      dialogEl.value?.focus();
+      // focus the first focusable element (e.g. an input), else the dialog for keyboard escape
+      const focusable = dialogEl.value?.querySelector<HTMLElement>(
+        "input, button, textarea, select, [tabindex]:not([tabindex=\"-1\"])",
+      );
+      (focusable ?? dialogEl.value)?.focus();
     } else {
       document.body.classList.remove("modal-open");
     }
