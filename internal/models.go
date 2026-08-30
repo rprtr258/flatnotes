@@ -19,21 +19,12 @@ type NoteResponseModel struct {
 
 type NoteContentResponseModel struct {
 	NoteResponseModel
-	Content *string `json:"content"`
+	Content string `json:"content"`
 }
 
 type NotePatchModel struct {
 	NewTitle   *string `json:"newTitle"`
 	NewContent *string `json:"newContent"`
-}
-
-type SearchResultModel struct {
-	Score             float64  `json:"score"`
-	Title             string   `json:"title"`
-	LastModified      int64    `json:"lastModified"`
-	TitleHighlights   *string  `json:"titleHighlights"`
-	ContentHighlights *string  `json:"contentHighlights"`
-	TagMatches        []string `json:"tagMatches"`
 }
 
 type ConfigModel struct {

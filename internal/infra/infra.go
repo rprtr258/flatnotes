@@ -108,9 +108,7 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 			return fiber.NewError(fiber.StatusBadRequest, fmt.Errorf("invalid title: %w", err).Error())
 		}
 
-		includeContent := c.QueryBool("include_content", true)
-
-		res, err := app.GetNote(title, includeContent)
+		res, err := app.GetNote(title)
 		if err != nil {
 			switch err {
 			case internal.ErrTitleInvalid:

@@ -251,11 +251,13 @@ func (app *App) updateIndex() error {
 		}
 
 		docs = append(docs, doc)
-
 		log.Info().Str("title", note.Title).Msg("added to index")
 	}
 
 	app.Index.Add(docs...)
+	for _, doc := range docs {
+		app.Notes[doc.ID()] = doc
+	}
 
 	return nil
 }
@@ -296,6 +298,15 @@ const (
 	OrderAsc  Order = "asc"
 	OrderDesc Order = "desc"
 )
+
+type SearchResultModel struct {
+	Score             float64  `json:"score"`
+	Title             string   `json:"title"`
+	LastModified      int64    `json:"lastModified"`
+	TitleHighlights   *string  `json:"titleHighlights"`
+	ContentHighlights *string  `json:"contentHighlights"`
+	TagMatches        []string `json:"tagMatches"`
+}
 
 // Search the index for the given term.
 func (app *App) Search(
@@ -381,7 +392,7 @@ func (app *App) Search(
 	}, hits...)
 }
 
-func (app *App) GetNote(title string, includeContent bool) (NoteContentResponseModel, error) {
+func (app *App) GetNote(title string) (NoteContentResponseModel, error) {
 	note, err := app.getNote(title)
 	if err != nil {
 		return NoteContentResponseModel{}, err
@@ -392,14 +403,9 @@ func (app *App) GetNote(title string, includeContent bool) (NoteContentResponseM
 		return NoteContentResponseModel{}, fmt.Errorf("get last modified time %q: %w", title, err)
 	}
 
-	resContent := (*string)(nil)
-	if includeContent {
-		content, err := note.GetContent()
-		if err != nil {
-			return NoteContentResponseModel{}, fmt.Errorf("get content: %w", err)
-		}
-
-		resContent = new(content)
+	content, err := note.GetContent()
+	if err != nil {
+		return NoteContentResponseModel{}, fmt.Errorf("get content: %w", err)
 	}
 
 	return NoteContentResponseModel{
@@ -407,7 +413,7 @@ func (app *App) GetNote(title string, includeContent bool) (NoteContentResponseM
 			Title:        note.Title,
 			LastModified: modtime.Unix(),
 		},
-		Content: resContent,
+		Content: content,
 	}, nil
 }
 
@@ -426,7 +432,7 @@ func (app *App) CreateNote(title, content string) (NoteContentResponseModel, err
 			Title:        note.Title,
 			LastModified: lastModified.Unix(),
 		},
-		Content: &content,
+		Content: content,
 	}, nil
 }
 
@@ -461,7 +467,7 @@ func (app *App) UpdateNote(title string, data NotePatchModel) (NoteContentRespon
 			Title:        note.Title,
 			LastModified: doc.Modtime.Unix(),
 		},
-		Content: new(doc.Content),
+		Content: doc.Content,
 	}, nil
 }
 
