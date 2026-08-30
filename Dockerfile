@@ -4,7 +4,7 @@ RUN apt update && \
   apt install unzip
 RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
-COPY package.json bun.lock .htmlnanorc ./
+COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 COPY flatnotes/src ./flatnotes/src
 RUN bun run build

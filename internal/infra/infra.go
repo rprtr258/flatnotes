@@ -48,7 +48,7 @@ func authenticate(cfg config.Config) func(*fiber.Ctx) error {
 				return fiber.NewError(fiber.StatusUnauthorized, "invalid token in Authorization header")
 			}
 
-			if err := internal.ValidateToken(cfg, token); err != nil {
+			if err := validateToken(cfg, token); err != nil {
 				return fiber.NewError(fiber.StatusUnauthorized, fmt.Errorf("validate token: %w", err).Error())
 			}
 
@@ -126,7 +126,7 @@ func setupApp(app *fiber.App, cfg config.Config, flatnotes internal.App) {
 						return fiber.NewError(fiber.StatusBadRequest, err.Error())
 					}
 
-					res, err := internal.Authenticate(cfg, data, &last_used_totp)
+					res, err := Authenticate(cfg, data, &last_used_totp)
 					if err != nil {
 						return fiber.NewError(fiber.StatusUnauthorized, err.Error())
 					}

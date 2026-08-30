@@ -1,4 +1,4 @@
-package internal
+package infra
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/rprtr258/flatnotes/internal"
 	"github.com/rprtr258/flatnotes/internal/config"
 )
 
@@ -26,7 +27,7 @@ func CreateAccessToken(config config.Config, username string) (string, error) {
 	}).SignedString([]byte(config.SessionKey)) //(to_encode, config.session_key, JWT_ALGORITHM)
 }
 
-func ValidateToken(config config.Config, token string /*= Depends(oauth2_scheme)*/) error {
+func validateToken(config config.Config, token string /*= Depends(oauth2_scheme)*/) error {
 	// try:
 	var claims claims
 	_, err := jwt.ParseWithClaims(token, &claims, func(t *jwt.Token) (any, error) {
@@ -54,7 +55,7 @@ func ValidateToken(config config.Config, token string /*= Depends(oauth2_scheme)
 	//     )
 }
 
-func Authenticate(cfg config.Config, data LoginModel, last_used_totp *string) (TokenModel, error) {
+func Authenticate(cfg config.Config, data internal.LoginModel, last_used_totp *string) (internal.TokenModel, error) {
 	expected_password := cfg.Password
 	var current_totp string
 	if cfg.AuthType == config.AuthTypeTOTP {
@@ -65,18 +66,18 @@ func Authenticate(cfg config.Config, data LoginModel, last_used_totp *string) (T
 	if cfg.Username != data.Username || expected_password != data.Password ||
 		// Prevent TOTP from being reused
 		cfg.AuthType == config.AuthTypeTOTP && *last_used_totp != "" && current_totp == *last_used_totp {
-		return TokenModel{}, fmt.Errorf("Incorrect login credentials.")
+		return internal.TokenModel{}, fmt.Errorf("Incorrect login credentials.")
 	}
 
 	access_token, err := CreateAccessToken(cfg, cfg.Username)
 	if err != nil {
-		return TokenModel{}, fmt.Errorf("create access token: %s", err.Error())
+		return internal.TokenModel{}, fmt.Errorf("create access token: %s", err.Error())
 	}
 
 	if cfg.AuthType == config.AuthTypeTOTP {
 		*last_used_totp = current_totp
 	}
-	return TokenModel{
+	return internal.TokenModel{
 		AccessToken: access_token,
 		TokenType:   "bearer",
 	}, nil
