@@ -68,6 +68,25 @@ func authenticate(cfg config.Config) func(*fiber.Ctx) error {
 	}
 }
 
+// validateToken, but reads the token from the "token" cookie instead of the
+// Authorization header. Used by the /attachments route, which <img> tags load
+// via GET (they cannot send a Bearer header, but they do send same-origin
+// cookies — see tokenStorage.ts, which scopes the cookie to /attachments).
+func authenticateCookie(cfg config.Config) func(*fiber.Ctx) error {
+	if fun.Contains(cfg.AuthType, config.AuthTypeNone, config.AuthTypeReadOnly) {
+		return func(c *fiber.Ctx) error {
+			return c.Next()
+		}
+	}
+
+	return func(c *fiber.Ctx) error {
+		if err := validateToken(cfg, c.Cookies("token")); err != nil {
+			return fiber.NewError(fiber.StatusUnauthorized, err.Error())
+		}
+		return c.Next()
+	}
+}
+
 func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 	// totp = (
 	//     pyotp.TOTP(config.totp_key) if config.auth_type == AuthType.TOTP else None
@@ -278,6 +297,30 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 
 	fapp.Static("/", "./flatnotes/dist")
 	fapp.Static("/static", filepath.Join(cfg.DataPath, "static"))
+
+	// Serves files relative to the data directory so that images placed next
+	// to a note (e.g. ![](img.png)) can be loaded by <img> tags. Authenticated
+	// via the "token" cookie; path traversal is blocked.
+	fapp.Get("/attachments/*", authenticateCookie(cfg), func(c *fiber.Ctx) error {
+		rel, err := url.PathUnescape(strings.TrimPrefix(c.Params("*"), "/"))
+		if err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+		}
+		cwd, err := os.Getwd()
+		if err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+		}
+		abs := filepath.Join(cwd, cfg.DataPath, filepath.FromSlash(rel))
+		resolved, err := filepath.Rel(filepath.Join(cwd, cfg.DataPath), abs)
+		if err != nil || resolved == ".." || strings.HasPrefix(resolved, ".."+string(filepath.Separator)) {
+			return fiber.NewError(fiber.StatusForbidden, "path outside data directory")
+		}
+		info, err := os.Stat(abs)
+		if err != nil || info.IsDir() {
+			return fiber.NewError(fiber.StatusNotFound, "not found")
+		}
+		return c.SendFile(abs)
+	})
 }
 
 func Run(ctx context.Context, cfg config.Config) error {

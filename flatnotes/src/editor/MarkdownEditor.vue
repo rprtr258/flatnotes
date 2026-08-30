@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch } from "vue";
-import { EditorState } from "@codemirror/state";
+import { EditorState, Compartment } from "@codemirror/state";
 import {
   EditorView,
   keymap,
@@ -18,12 +18,14 @@ import { tags } from "@lezer/highlight";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { GFM } from "@lezer/markdown";
+import { noteTitleFacet } from "./plugins/link";
 import { cleanPlugins } from "./clean";
 import "./editor.scss";
 
 const props = defineProps<{
   initialValue?: string;
   readOnly?: boolean;
+  noteTitle?: string;
 }>();
 
 const emit = defineEmits<{ change: [] }>();
@@ -57,6 +59,10 @@ const highlightStyle = HighlightStyle.define([
 const hostEl = ref<HTMLElement | null>(null);
 let view: EditorView | null = null;
 
+// Reconfigured when the note title changes so the image plugin can resolve
+// relative image paths against the (possibly renamed) note's directory.
+const titleCompartment = new Compartment();
+
 onMounted(() => {
   if (!hostEl.value) return;
   view = new EditorView({
@@ -65,6 +71,7 @@ onMounted(() => {
       extensions: [
         EditorState.readOnly.of(!!props.readOnly),
         EditorView.editable.of(!props.readOnly),
+        titleCompartment.of(noteTitleFacet.of(props.noteTitle ?? "")),
         EditorView.lineWrapping,
         highlightSpecialChars(),
         drawSelection(),
@@ -101,6 +108,16 @@ watch(
     if (incoming === current) return;
     view.dispatch({
       changes: { from: 0, to: current.length, insert: incoming },
+    });
+  },
+);
+
+watch(
+  () => props.noteTitle,
+  (title) => {
+    if (!view) return;
+    view.dispatch({
+      effects: titleCompartment.reconfigure(noteTitleFacet.of(title ?? "")),
     });
   },
 );

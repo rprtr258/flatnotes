@@ -83,6 +83,8 @@
 .sb-image {
   max-width: 100%;
   height: auto;
+  display: inline-block;
+  vertical-align: middle;
 }
 .sb-em { font-style: italic; }
 .sb-strong { font-weight: 700; }

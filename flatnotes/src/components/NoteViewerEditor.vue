@@ -308,6 +308,7 @@ onBeforeUnmount(() => {
         <MarkdownEditor
           :initial-value="initialContent ?? ''"
           :read-only="!canModify"
+          :note-title="currentNote?.title ?? ''"
           ref="markdownEditor"
           @change="scheduleSave"
         />
