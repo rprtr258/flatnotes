@@ -22,6 +22,7 @@ export function toast(message: string, opts: { variant?: ToastVariant; timeout?:
 }
 
 export function removeToast(id: number): void {
-  const i = toasts.findIndex((t) => t.id === id);
-  if (i !== -1) toasts.splice(i, 1);
+  const i = toasts.findIndex(t => t.id === id);
+  if (i !== -1)
+    toasts.splice(i, 1);
 }

@@ -63,6 +63,7 @@ const emit = defineEmits<{ "note-deleted": [] }>();
 
 const editMode = ref(false);
 let draftSaveTimeout: number | null = null;
+let titleSaveTimeout: number | null = null;
 const currentNote = ref<Note | null>(null);
 const titleInput = ref<string | null>(null);
 const initialContent = ref<string | null>(null);
@@ -71,6 +72,18 @@ const noteLoadFailedIcon = ref<string | null>(null);
 const noteLoadFailedMessage = ref("Failed to load Note");
 
 const toastUiEditor = ref<{ invoke: <T = unknown>(method: string, ...args: unknown[]) => T } | null>(null);
+const viewTitleEl = ref<HTMLElement | null>(null);
+const viewTitleText = ref("");
+
+watch(
+  viewTitleText,
+  (text) => {
+    if (viewTitleEl.value && viewTitleEl.value.innerText !== text) {
+      viewTitleEl.value.innerText = text;
+    }
+  },
+  { flush: "post" },
+);
 
 const canModify = computed(
   () => props.authType != null && props.authType !== constants.authTypes.readOnly,
@@ -81,6 +94,7 @@ function loadNote(title: string): void {
   api<NoteContentResponseModel>(`/api/notes/${encodeURIComponent(title)}`)
     .then((response) => {
       currentNote.value = new Note(response.title, response.lastModified, response.content);
+      viewTitleText.value = response.title;
     })
     .catch((error) => {
       const err = error as ApiError;
@@ -178,6 +192,8 @@ function saveDraft(): void {
   }
 }
 
+const reservedTitleCharacters = /[<>:"/\\|?*]/;
+
 function existingTitleToast(): void {
   toast("A note with this title already exists. Please try again with a new title.", { variant: "danger" });
 }
@@ -185,6 +201,7 @@ function existingTitleToast(): void {
 function saveNoteResponseHandler(response: NoteContentResponseModel): void {
   localStorage.removeItem(currentNote.value!.title);
   currentNote.value = new Note(response.title, response.lastModified, response.content);
+  viewTitleText.value = response.title;
   eventBus.emit("update-note-title", { title: currentNote.value.title });
   history.replaceState(null, "", currentNote.value.href);
   setEditMode(false);
@@ -193,6 +210,84 @@ function saveNoteResponseHandler(response: NoteContentResponseModel): void {
 
 function noteSavedToast(): void {
   toast("Note saved ✓", { variant: "success" });
+}
+
+function clearTitleSaveTimeout(): void {
+  if (titleSaveTimeout != null) {
+    clearTimeout(titleSaveTimeout);
+    titleSaveTimeout = null;
+  }
+}
+
+function saveTitle(showToast: boolean): void {
+  clearTitleSaveTimeout();
+  if (!canModify.value || !currentNote.value || !viewTitleEl.value) {
+    return;
+  }
+  const newTitle = viewTitleEl.value.innerText.trim();
+  const oldTitle = currentNote.value.title;
+  if (newTitle === oldTitle) {
+    if (showToast) {
+      viewTitleEl.value.innerText = oldTitle;
+    }
+    return;
+  }
+  if (!newTitle) {
+    if (showToast) {
+      viewTitleEl.value.innerText = oldTitle;
+      toast("Cannot save note without a title ✘", { variant: "danger" });
+    }
+    return;
+  }
+  if (reservedTitleCharacters.test(newTitle)) {
+    if (showToast) {
+      viewTitleEl.value.innerText = oldTitle;
+      toast('Due to filename restrictions, the following characters are not allowed in a note title: <>:"/\\\\|?*', {
+        variant: "danger",
+      });
+    }
+    return;
+  }
+  api<NoteContentResponseModel>(`/api/notes/${encodeURIComponent(oldTitle)}`, {
+    method: "PATCH",
+    body: { newTitle },
+  })
+    .then((response) => {
+      if (currentNote.value?.title !== oldTitle) {
+        return;
+      }
+      currentNote.value = new Note(response.title, response.lastModified, response.content);
+      eventBus.emit("update-note-title", { title: currentNote.value.title });
+      history.replaceState(null, "", currentNote.value.href);
+      if (showToast) {
+        viewTitleText.value = response.title;
+        toast("Note title updated ✓", { variant: "success" });
+      }
+    })
+    .catch((error) => {
+      if (currentNote.value?.title !== oldTitle) {
+        return;
+      }
+      viewTitleEl.value!.innerText = currentNote.value!.title;
+      const err = error as ApiError;
+      if (err.handled) {
+        return;
+      } else if (err.status === 409) {
+        existingTitleToast();
+      } else {
+        eventBus.emit("unhandled-server-error", { error });
+      }
+    });
+}
+
+function scheduleTitleSave(): void {
+  clearTitleSaveTimeout();
+  titleSaveTimeout = window.setTimeout(() => saveTitle(false), 600);
+}
+
+function flushTitleSave(): void {
+  clearTitleSaveTimeout();
+  saveTitle(true);
 }
 
 function saveNote(): void {
@@ -327,6 +422,7 @@ function init(): void {
     setEditMode(false);
   } else {
     currentNote.value = new Note();
+    viewTitleText.value = "";
     setEditMode(true);
   }
 }
@@ -374,8 +470,16 @@ onBeforeUnmount(() => {
       <!-- Buttons -->
       <div class="d-flex justify-content-between flex-wrap align-items-end mb-3">
         <!-- Title -->
-        <h2 v-if="editMode === false" class="title" :title="currentNote.title">
-          {{ currentNote.title }}
+        <h2
+          v-if="editMode === false"
+          ref="viewTitleEl"
+          class="title"
+          :contenteditable="canModify"
+          :title="viewTitleText"
+          @input="scheduleTitleSave"
+          @blur="flushTitleSave"
+          @keydown.enter.prevent.exact="($event.target as HTMLElement).blur()"
+        >
         </h2>
         <input
           v-else
@@ -452,6 +556,13 @@ onBeforeUnmount(() => {
   overflow-x: hidden;
   color: var(--colour-text);
   margin: 0;
+
+  &[contenteditable="true"] {
+    cursor: text;
+    &:hover, &:focus {
+      outline: none;
+    }
+  }
 }
 
 .title-input {
