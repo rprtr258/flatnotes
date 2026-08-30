@@ -4,13 +4,16 @@
   height: 100%;
   font-family: "Inter", sans-serif;
   color: var(--colour-text);
-  background-color: var(--colour-background-elevated);
 }
 
 .cm-host .cm-editor {
   height: 100%;
-  background-color: var(--colour-background-elevated);
   color: var(--colour-text);
+}
+
+// Theme-aware caret: light text on dark theme, dark text on light theme.
+.cm-host .cm-cursor {
+  border-left-color: var(--colour-text);
 }
 
 .cm-host .cm-scroller {
@@ -128,9 +131,3 @@
   padding: 0 4px;
 }
 
-// Dark theme overrides
-body.dark-theme .cm-host,
-body.dark-theme .cm-host .cm-editor {
-  background-color: var(--colour-background-elevated);
-  color: var(--colour-text);
-}

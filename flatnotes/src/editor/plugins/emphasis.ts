@@ -23,7 +23,7 @@ const MARK_NODE: Record<string, string> = {
 // cursor is inside the node the raw markdown is left untouched.
 export function emphasisPlugin(): Extension {
   return decoratorStateField((state: EditorState): DecorationSet => {
-    const decorations: { from: number; value: Decoration }[] = [];
+    const decorations: { from: number; to: number; value: Decoration }[] = [];
     syntaxTree(state).iterate({
       enter(node) {
         const cls = MARK_CLASS[node.name];
@@ -34,13 +34,13 @@ export function emphasisPlugin(): Extension {
         const last = node.node.lastChild;
         if (!first || !last || first.name !== markName || last.name !== markName) return;
         if (first.to >= last.from) return; // empty content
-        decorations.push({ from: node.from, value: invisibleDecoration });
-        decorations.push({ from: first.to, value: Decoration.mark({ class: cls }) });
-        decorations.push({ from: last.from, value: invisibleDecoration });
+        decorations.push({ from: node.from, to: first.to, value: invisibleDecoration });
+        decorations.push({ from: first.to, to: last.from, value: Decoration.mark({ class: cls }) });
+        decorations.push({ from: last.from, to: node.to, value: invisibleDecoration });
       },
     });
     return Decoration.set(
-      decorations.map((d) => d.value.range(d.from)),
+      decorations.map((d) => d.value.range(d.from, d.to)),
       true,
     );
   });
