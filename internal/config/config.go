@@ -1,11 +1,12 @@
 package config
 
 import (
-	"log"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 // from base64 import b32encode
@@ -26,7 +27,7 @@ func get_env[T interface {
 	value, ok := os.LookupEnv(key)
 	if !ok {
 		if mandatory {
-			log.Fatalf("Environment variable %s must be set.", key)
+			log.Fatal().Str("env", key).Msg("environment variable must be set")
 		}
 		return defaultT
 	}
@@ -34,7 +35,7 @@ func get_env[T interface {
 	if _, ok := any(*new(T)).(int); ok {
 		res, err := strconv.Atoi(value)
 		if err != nil {
-			log.Fatalf("Invalid value %q for %s.", value, key)
+			log.Fatal().Str("env", key).Str("val", value).Msg("invalid value")
 		}
 		return any(res).(T)
 	}
@@ -64,7 +65,7 @@ func get_auth_type() AuthType {
 			string(AuthTypePassword),
 			string(AuthTypeTOTP),
 		}, ", ")
-		log.Fatalf("Invalid value %s for %s. Must be one of{ "+variants+".", rawAuthType, key)
+		log.Fatal().Str("env", key).Str("val", rawAuthType).Msg("invalid value, must be one of: " + variants)
 	}
 	panic("unreachable")
 }

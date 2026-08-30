@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	"github.com/rprtr258/flatnotes/internal/config"
 	"github.com/rprtr258/flatnotes/internal/infra"
@@ -24,8 +27,9 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	log.SetFlags(log.Lshortfile | log.Flags())
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+
 	if err := run(ctx); err != nil {
-		log.Fatalf("app stopped: %s", err.Error())
+		log.Fatal().Err(err).Msg("app stopped")
 	}
 }

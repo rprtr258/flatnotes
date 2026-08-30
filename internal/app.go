@@ -2,8 +2,8 @@ package internal
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -12,14 +12,15 @@ import (
 	"time"
 
 	"github.com/rprtr258/fun"
+	"github.com/rs/zerolog/log"
 
 	"github.com/rprtr258/flatnotes/internal/fts"
 )
 
 var (
-	ErrTitleExists  = fmt.Errorf("The specified title already exists.")
-	ErrTitleInvalid = fmt.Errorf("The specified title contains invalid characters.")
-	ErrNotFound     = fmt.Errorf("The specified note cannot be found.")
+	ErrTitleExists  = errors.New("the specified title already exists")
+	ErrTitleInvalid = errors.New("the specified title contains invalid characters")
+	ErrNotFound     = errors.New("the specified note cannot be found")
 )
 
 var (
@@ -92,11 +93,11 @@ func New(dir string) (App, error) {
 
 	// for now loaded from fs on startup
 	start := time.Now()
-	log.Println("started initial indexing")
+	log.Info().Msg("started initial indexing")
 	if err := res.updateIndex(); err != nil {
 		return App{}, fmt.Errorf("update index: %w", err)
 	}
-	log.Println("finished initial indexing in", time.Since(start))
+	log.Info().Dur("in", time.Since(start)).Msg("finished initial indexing")
 
 	return res, nil
 }
@@ -206,7 +207,7 @@ func (app *App) updateIndex() error {
 		if _, err := os.Stat(idxFilepath); os.IsNotExist(err) {
 			// Delete missing
 			app.Index.Remove(id)
-			log.Println(id, "removed from index")
+			log.Info().Str("id", id).Msg("removed from index")
 		} else if stat, err := os.Stat(idxFilepath); err == nil && stat.ModTime().After(doc.Modtime) {
 			note, err := app.getNote(id)
 			if err != nil {
@@ -221,7 +222,7 @@ func (app *App) updateIndex() error {
 			docs = append(docs, doc)
 
 			// Update modified
-			log.Println(id, "updated")
+			log.Info().Str("id", id).Msg("updated")
 
 			indexed[id] = struct{}{}
 		} else {

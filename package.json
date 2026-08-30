@@ -23,5 +23,8 @@
     "sass": "1.97.3",
     "vue-hot-reload-api": "2.3.4",
     "vue-template-compiler": "2.7.16"
+  },
+  "htmlnano": {
+    "minifySvg": false
   }
 }
