@@ -56,30 +56,30 @@ func validateToken(config config.Config, token string /*= Depends(oauth2_scheme)
 	//     )
 }
 
-func Authenticate(cfg config.Config, data internal.LoginModel, last_used_totp *string) (internal.TokenModel, error) {
-	expected_password := cfg.Password
-	var current_totp string
+func Authenticate(cfg config.Config, data internal.LoginModel, lastUsedTOTP *string) (internal.TokenModel, error) {
+	expectedPassword := cfg.Password
+	var currentTOTP string
 	if cfg.AuthType == config.AuthTypeTOTP {
-		current_totp = "" // totp.now()
-		// expected_password += current_totp
+		currentTOTP = "" // totp.now()
+		// expectedPassword += currentTOTP
 	}
 
-	if cfg.Username != data.Username || expected_password != data.Password ||
+	if cfg.Username != data.Username || expectedPassword != data.Password ||
 		// Prevent TOTP from being reused
-		cfg.AuthType == config.AuthTypeTOTP && *last_used_totp != "" && current_totp == *last_used_totp {
+		cfg.AuthType == config.AuthTypeTOTP && *lastUsedTOTP != "" && currentTOTP == *lastUsedTOTP {
 		return internal.TokenModel{}, fmt.Errorf("Incorrect login credentials.")
 	}
 
-	access_token, err := CreateAccessToken(cfg, cfg.Username)
+	accessToken, err := CreateAccessToken(cfg, cfg.Username)
 	if err != nil {
 		return internal.TokenModel{}, fmt.Errorf("create access token: %s", err.Error())
 	}
 
 	if cfg.AuthType == config.AuthTypeTOTP {
-		*last_used_totp = current_totp
+		*lastUsedTOTP = currentTOTP
 	}
 	return internal.TokenModel{
-		AccessToken: access_token,
+		AccessToken: accessToken,
 		TokenType:   "bearer",
 	}, nil
 }

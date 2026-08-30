@@ -273,14 +273,21 @@ func (app *App) GetTags() (set.Set[string], error) {
 	return res, nil
 }
 
-type Sort string
+type Sort int
 
 const (
-	SortNone         Sort = ""
-	SortScore        Sort = "score"
-	SortTitle        Sort = "title"
-	SortLastModified Sort = "last_modified"
+	SortScore Sort = iota
+	SortTitle
+	SortLastModified
 )
+
+func (o Sort) String() string {
+	return [...]string{
+		"Score",
+		"Title",
+		"Last Modified",
+	}[o]
+}
 
 type Order string
 
