@@ -231,6 +231,7 @@ func (app *App) updateIndex() error {
 		if _, err := os.Stat(idxFilepath); os.IsNotExist(err) {
 			// Delete missing
 			app.Index.Delete(id)
+			delete(app.Notes, id)
 			log.Info().Str("id", id).Msg("removed from index")
 		} else if stat, err := os.Stat(idxFilepath); err == nil && stat.ModTime().After(doc.Modtime) {
 			note, err := app.getNote(id)
