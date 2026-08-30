@@ -3,6 +3,8 @@
 
 # Include the following
 !package.json
+!tsconfig.json
+!vite.config.ts
 !bun.lock
 !flatnotes/**
 !entrypoint.sh

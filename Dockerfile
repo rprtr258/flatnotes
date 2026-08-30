@@ -6,7 +6,8 @@ RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
-COPY flatnotes/src ./flatnotes/src
+COPY tsconfig.json vite.config.ts ./
+COPY flatnotes ./flatnotes
 RUN bun run build
 COPY go.mod go.sum ./
 RUN go mod download
