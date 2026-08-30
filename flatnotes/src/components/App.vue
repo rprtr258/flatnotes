@@ -148,7 +148,7 @@ eventBus.on("navigate", (payload) => navigate(payload.href, payload.event));
 eventBus.on("unhandled-server-error", (payload) => unhandledServerErrorToast(payload.error));
 eventBus.on("update-note-title", (payload) => updateNoteTitle(payload.title));
 
-Mousetrap.bind("/", () => {
+Mousetrap.bind("ctrl+shift+f", () => {
   openSearch();
   return false;
 });
@@ -177,7 +177,7 @@ onUnmounted(() => {
   eventBus.off("navigate");
   eventBus.off("unhandled-server-error");
   eventBus.off("update-note-title");
-  Mousetrap.unbind("/");
+  Mousetrap.unbind("ctrl+shift+f");
 });
 </script>
 
