@@ -6,6 +6,7 @@ import NavBar from "./NavBar.vue";
 import Login from "./Login.vue";
 import Logo from "./Logo.vue";
 import SearchInput from "./SearchInput.vue";
+import OpenModal from "./OpenModal.vue";
 import SearchResults from "./SearchResults.vue";
 import RecentlyModified from "./RecentlyModified.vue";
 import NoteViewerEditor from "./NoteViewerEditor.vue";
@@ -38,6 +39,7 @@ const noteTitle = ref<string | null>(null);
 const searchTerm = ref<string | null>(null);
 const darkTheme = ref(false);
 const searchModalOpen = ref(false);
+const openModalOpen = ref(false);
 
 watch(darkTheme, (value) => {
   if (value) {
@@ -153,6 +155,13 @@ Mousetrap.bind("ctrl+shift+f", () => {
   return false;
 });
 
+Mousetrap.bind("ctrl+k", () => {
+  if (currentView.value !== views.login) {
+    openModalOpen.value = true;
+  }
+  return false;
+});
+
 loadConfig();
 
 const storedDarkTheme = localStorage.getItem("darkTheme");
@@ -178,6 +187,7 @@ onUnmounted(() => {
   eventBus.off("unhandled-server-error");
   eventBus.off("update-note-title");
   Mousetrap.unbind("ctrl+shift+f");
+  Mousetrap.unbind("ctrl+k");
 });
 </script>
 
@@ -187,6 +197,9 @@ onUnmounted(() => {
     <Modal v-model="searchModalOpen" :hide-header="true" :hide-footer="true">
       <SearchInput />
     </Modal>
+
+    <!-- Open Modal (Ctrl+K) -->
+    <OpenModal v-model="openModalOpen" />
 
     <!-- Nav Bar -->
     <NavBar
