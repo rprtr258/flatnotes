@@ -8,19 +8,18 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/rprtr258/flatnotes/internal"
-	"github.com/rprtr258/flatnotes/internal/config"
 	"github.com/rprtr258/flatnotes/internal/healthcheck"
 )
 
-func run() error {
+func run(args []string) error {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
-	cfg, err := config.New()
-	if err != nil {
-		return fmt.Errorf("read config: %w", err)
+	if len(args) != 1 {
+		return fmt.Errorf("usage: check <dir>")
 	}
+	dir := args[0]
 
-	app, err := internal.New(cfg.DataPath)
+	app, err := internal.New(dir)
 	if err != nil {
 		return fmt.Errorf("init app: %w", err)
 	}
@@ -30,7 +29,7 @@ func run() error {
 }
 
 func main() {
-	if err := run(); err != nil {
+	if err := run(os.Args[1:]); err != nil {
 		log.Fatal().Err(err).Msg("read config")
 	}
 }

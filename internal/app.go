@@ -10,8 +10,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"unicode/utf8"
 	"time"
+	"unicode/utf8"
 
 	"github.com/rprtr258/fun"
 	"github.com/rprtr258/fun/set"
