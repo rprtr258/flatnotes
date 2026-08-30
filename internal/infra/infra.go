@@ -266,16 +266,15 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 func Run(ctx context.Context, cfg config.Config) error {
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			switch e := err.(type) {
-			case *fiber.Error:
+			if e, ok := err.(*fiber.Error); ok {
 				if e.Code == fiber.StatusNotFound {
 					return c.Redirect("/")
 				}
 
-				return err
-			default:
-				return err
+				return c.Status(e.Code).SendString(e.Message)
 			}
+
+			return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		},
 	})
 	app.Use(fiberzerolog.New(fiberzerolog.Config{

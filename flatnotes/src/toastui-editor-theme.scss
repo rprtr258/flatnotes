@@ -1,4 +1,4 @@
-@import "../colours";
+@use "colours";
 
 .note {
   background-color: var(--colour-background-elevated);

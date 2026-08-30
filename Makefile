@@ -5,6 +5,8 @@ export FLATNOTES_SECRET_KEY=1
 
 .PHONY: run
 run:
+	make frontend
+	mkdir -p data
 	go run ./cmd/main.go
 
 .PHONY: watch
@@ -14,7 +16,7 @@ watch:
 
 .PHONY: frontend
 frontend:
-	bun install
+	PATH="/home/linuxbrew/.linuxbrew/lib/node_modules/npm/bin/node-gyp-bin:$$PATH" bun i
 	bun run build
 
 .PHONY: lint

@@ -4,3 +4,5 @@ data/
 notes/
 main
 profile.out
+.cache/
+flatnotes/dist/
