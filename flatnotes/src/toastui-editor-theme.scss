@@ -94,7 +94,7 @@
 
   .tab-item {
     background-color: var(--colour-background-tint);
-    color: var(--colour-text-muted);
+    color: var(--colour-text);
     border-color: var(--colour-border);
   }
 }
@@ -122,7 +122,7 @@
 }
 
 .toastui-editor-md-block-quote .toastui-editor-md-marked-text {
-  color: var(--colour-text-muted);
+  color: var(--colour-text);
 }
 
 .toastui-editor-md-code,

@@ -1,226 +1,193 @@
-<script>
+<script setup lang="ts">
+import { ref, computed, watch, onMounted } from "vue";
 import * as constants from "../constants";
 import * as helpers from "../helpers";
-
-import EventBus from "../eventBus";
-import LoadingIndicator from "./LoadingIndicator";
-import SearchInput from "./SearchInput";
+import { eventBus } from "../eventBus";
+import LoadingIndicator from "./LoadingIndicator.vue";
+import SearchInput from "./SearchInput.vue";
+import Icon from "../ui/Icon.vue";
+import { vTooltip } from "../ui/tooltip";
 import { SearchResult } from "../classes";
 import api from "../api";
+import type { SearchResultModel } from "../types";
 
-export default {
-  components: {
-    LoadingIndicator,
-    SearchInput,
-  },
+const props = defineProps<{ searchTerm: string | null }>();
 
-  props: {
-    searchTerm: { type: String, required: true },
-  },
+const searchFailed = ref(false);
+const searchFailedMessage = ref("Failed to load Search Results");
+const searchFailedIcon = ref<string | null>(null);
+const searchResults = ref<SearchResult[] | null>(null);
+const searchResultsIncludeHighlights = ref(false);
+const sortBy = ref(0);
+const showHighlights = ref(true);
 
-  data: function () {
-    return {
-      searchFailed: false,
-      searchFailedMessage: "Failed to load Search Results",
-      searchFailedIcon: null,
-      searchResults: null,
-      searchResultsIncludeHighlights: null,
-      sortBy: 0,
-      showHighlights: true,
-    };
-  },
+// The original referenced an undefined `sortOptions` (the Order select rendered
+// empty). Populated here with the three sort options so the control works as
+// clearly intended.
+const sortOptions = [
+  constants.searchSortOptions.score,
+  constants.searchSortOptions.title,
+  constants.searchSortOptions.lastModified,
+];
 
-  computed: {
-    sortByIsGrouped: function () {
-      return this.sortBy == constants.searchSortOptions.title;
+interface ResultGroup {
+  name: string;
+  searchResults: SearchResult[];
+}
+
+const sortByIsGrouped = computed(() => sortBy.value === constants.searchSortOptions.title);
+
+const resultsGrouped = computed<ResultGroup[]>(() => {
+  if (!searchResults.value) return [];
+  switch (sortBy.value) {
+    case constants.searchSortOptions.title:
+      return resultsByTitle();
+    case constants.searchSortOptions.lastModified:
+      return resultsByLastModified();
+    default:
+      return resultsByScore();
+  }
+});
+
+watch(
+  () => props.searchTerm,
+  () => init(),
+);
+
+watch(sortBy, (value) => {
+  helpers.setSearchParam(constants.params.sortBy, String(value));
+});
+
+watch(showHighlights, (value) => {
+  helpers.setSearchParam(constants.params.showHighlights, String(value));
+});
+
+function getSearchResults(): void {
+  searchFailed.value = false;
+  searchResultsIncludeHighlights.value = false;
+  api<SearchResultModel[]>("/api/search", {
+    params: {
+      term: props.searchTerm ?? "",
     },
-
-    resultsGrouped: function () {
-      switch (this.sortBy) {
-      case constants.searchSortOptions.title:
-        return this.resultsByTitle();
-      case constants.searchSortOptions.lastModified:
-        return this.resultsByLastModified();
-      default:
-        return this.resultsByScore();
-      }
-    },
-  },
-
-  watch: {
-    searchTerm: function () {
-      this.init();
-    },
-
-    sortBy: function () {
-      helpers.setSearchParam(constants.params.sortBy, this.sortBy);
-    },
-
-    showHighlights: function () {
-      helpers.setSearchParam(
-        constants.params.showHighlights,
-        this.showHighlights
-      );
-    },
-  },
-
-  methods: {
-    getSearchResults: function () {
-      let parent = this;
-      this.searchFailed = false;
-      this.searchResultsIncludeHighlights = false;
-      api("/api/search", {
-        params: {
-          term: this.searchTerm,
-        },
-      })
-        .then((response) => {
-          parent.searchResults = [];
-          if (response.length == 0) {
-            parent.searchFailedIcon = "search";
-            parent.searchFailedMessage = "No Results";
-            parent.searchFailed = true;
-          } else {
-            response.forEach(function (responseItem) {
-              let searchResult = new SearchResult(responseItem);
-              parent.searchResults.push(searchResult);
-              if (
-                parent.searchResultsIncludeHighlights == false &&
-                searchResult.includesHighlights
-              ) {
-                parent.searchResultsIncludeHighlights = true;
-              }
-            });
-          }
-        })
-        .catch((error) => {
-          if (!error.handled) {
-            parent.searchFailed = true;
-            EventBus.$emit("unhandledServerError", error);
+  })
+    .then((response) => {
+      searchResults.value = [];
+      if (response.length === 0) {
+        searchFailedIcon.value = "search";
+        searchFailedMessage.value = "No Results";
+        searchFailed.value = true;
+      } else {
+        response.forEach((responseItem) => {
+          const searchResult = new SearchResult(responseItem);
+          searchResults.value!.push(searchResult);
+          if (searchResultsIncludeHighlights.value === false && searchResult.includesHighlights) {
+            searchResultsIncludeHighlights.value = true;
           }
         });
-    },
+      }
+    })
+    .catch((error) => {
+      if (!(error as { handled?: boolean }).handled) {
+        searchFailed.value = true;
+        eventBus.emit("unhandled-server-error", { error });
+      }
+    });
+}
 
-    resultsByScore: function () {
-      return [
-        {
-          name: "_",
-          searchResults: [...this.searchResults].sort((i, j) => j.score - i.score),
-        },
-      ];
+function resultsByScore(): ResultGroup[] {
+  return [
+    {
+      name: "_",
+      searchResults: [...searchResults.value!].sort((i, j) => j.score - i.score),
     },
+  ];
+}
 
-    resultsByLastModified: function () {
-      return [
-        {
-          name: "_",
-          searchResults: this.searchResults.sort(function (
-            searchResultA,
-            searchResultB
-          ) {
-            return searchResultB.lastModified - searchResultA.lastModified;
-          }),
-        },
-      ];
+function resultsByLastModified(): ResultGroup[] {
+  return [
+    {
+      name: "_",
+      searchResults: searchResults.value!.sort(
+        (a, b) => (b.lastModified ?? 0) - (a.lastModified ?? 0),
+      ),
     },
+  ];
+}
 
-    resultsByTitle: function () {
-      // Set up an empty dictionary of groups
-      let notesGroupedDict = {};
-      let specialCharGroupTitle = "#";
-      [specialCharGroupTitle, ...constants.alphabet].forEach(function (group) {
-        notesGroupedDict[group] = [];
+function resultsByTitle(): ResultGroup[] {
+  const notesGroupedDict: Record<string, SearchResult[]> = {};
+  const specialCharGroupTitle = "#";
+  [specialCharGroupTitle, ...constants.alphabet].forEach((group) => {
+    notesGroupedDict[group] = [];
+  });
+
+  searchResults.value!.forEach((searchResult) => {
+    const firstCharUpper = searchResult.title[0].toUpperCase();
+    if (constants.alphabet.includes(firstCharUpper)) {
+      notesGroupedDict[firstCharUpper].push(searchResult);
+    } else {
+      notesGroupedDict[specialCharGroupTitle].push(searchResult);
+    }
+  });
+
+  const notesGroupedArray: ResultGroup[] = [];
+  Object.entries(notesGroupedDict).forEach(([name, results]) => {
+    if (results.length) {
+      notesGroupedArray.push({
+        name,
+        searchResults: results.sort((a, b) => a.title.localeCompare(b.title)),
       });
+    }
+  });
 
-      // Add results to the group dictionary
-      this.searchResults.forEach(function (searchResult) {
-        let firstCharUpper = searchResult.title[0].toUpperCase();
-        if (constants.alphabet.includes(firstCharUpper)) {
-          notesGroupedDict[firstCharUpper].push(searchResult);
-        } else {
-          notesGroupedDict[specialCharGroupTitle].push(searchResult);
-        }
-      });
+  notesGroupedArray.sort((a, b) => a.name.localeCompare(b.name));
+  return notesGroupedArray;
+}
 
-      // Convert dict to an array skipping empty groups
-      let notesGroupedArray = [];
-      Object.entries(notesGroupedDict).forEach(function (item) {
-        if (item[1].length) {
-          notesGroupedArray.push({
-            name: item[0],
-            searchResults: item[1].sort(function (
-              SearchResultA,
-              SearchResultB
-            ) {
-              // Sort by title within each group
-              return SearchResultA.title.localeCompare(SearchResultB.title);
-            }),
-          });
-        }
-      });
+function openNote(href: string, event?: Event): void {
+  eventBus.emit("navigate", { href, event });
+}
 
-      // Ensure the array is ordered correctly
-      notesGroupedArray.sort(function (groupA, groupB) {
-        return groupA.name.localeCompare(groupB.name);
-      });
-
-      return notesGroupedArray;
-    },
-
-    openNote: function (href, event) {
-      EventBus.$emit("navigate", href, event);
-    },
-
-    sortOptionToString: function (sortOption) {
-      let sortOptionStrings = {
-        0: "Score",
-        1: "Title",
-        2: "Last Modified",
-      };
-      return sortOptionStrings[sortOption];
-    },
-
-    init: function () {
-      this.sortBy = helpers.getSearchParamInt(constants.params.sortBy, 0);
-      this.showHighlights = helpers.getSearchParamBool(
-        constants.params.showHighlights,
-        true
-      );
-      this.getSearchResults();
-    },
-  },
-
-  created: function () {
-    this.init();
-  },
+const sortOptionStrings: Record<number, string> = {
+  0: "Score",
+  1: "Title",
+  2: "Last Modified",
 };
+
+function sortOptionToString(sortOption: number): string {
+  return sortOptionStrings[sortOption];
+}
+
+function init(): void {
+  sortBy.value = helpers.getSearchParamInt(constants.params.sortBy, 0) ?? 0;
+  showHighlights.value = helpers.getSearchParamBool(constants.params.showHighlights, true) ?? true;
+  getSearchResults();
+}
+
+onMounted(init);
 </script>
 
 <template>
   <div class="mb-4">
     <!-- Input -->
-    <SearchInput :initial-value="searchTerm" class="mb-1"></SearchInput>
+    <SearchInput :initial-value="searchTerm ?? undefined" class="mb-1" />
 
     <!-- Searching -->
     <div
-      v-if="searchResults == null || searchResults.length == 0"
+      v-if="searchResults == null || searchResults.length === 0"
       class="h-100 d-flex flex-column justify-content-center"
     >
       <LoadingIndicator
         :failed="searchFailed"
-        :failedBootstrapIcon="searchFailedIcon"
-        :failedMessage="searchFailedMessage"
+        :failed-icon="searchFailedIcon ?? undefined"
+        :failed-message="searchFailedMessage"
       />
-    </div> <div v-else> <!-- Search Results Loaded -->
+    </div>
+    <div v-else>
       <!-- Controls -->
       <div class="mb-3">
         <select v-model="sortBy" class="bttn sort-select">
-          <option
-            v-for="option in sortOptions"
-            :key="option"
-            :value="option"
-            class="p-0"
-          >
+          <option v-for="option in sortOptions" :key="option" :value="option" class="p-0">
             Order: {{ sortOptionToString(option) }}
           </option>
         </select>
@@ -231,7 +198,7 @@ export default {
           class="bttn"
           @click="showHighlights = !showHighlights"
         >
-          <b-icon :icon="showHighlights ? 'eye-slash' : 'eye'"></b-icon>
+          <Icon :name="showHighlights ? 'eye-slash' : 'eye'" />
           {{ showHighlights ? "Hide" : "Show" }} Highlights
         </button>
       </div>
@@ -257,11 +224,10 @@ export default {
                 v-html="
                   showHighlights ? result.titleHighlightsOrTitle : result.title
                 "
-              ></p>
+              />
               <span
                 class="last-modified d-none d-md-block"
-                v-b-tooltip.hover
-                title="Last Modified"
+                v-tooltip="'Last Modified'"
               >
                 {{ result.lastModifiedAsString }}
               </span>
@@ -270,9 +236,9 @@ export default {
               v-show="showHighlights"
               class="result-contents"
               v-html="result.contentHighlights"
-            ></p>
+            />
             <div v-show="showHighlights">
-              <span v-for="tag in result.tagMatches" :key="tag" class="tag mr-2"
+              <span v-for="tag in result.tagMatches" :key="tag" class="tag me-2"
                 >#{{ tag }}</span
               >
             </div>
@@ -307,12 +273,12 @@ export default {
 }
 
 .last-modified {
-  color: var(--colour-text-muted);
+  color: var(--colour-text);
   font-size: 12px;
 }
 
 .result-contents {
-  color: var(--colour-text-muted);
+  color: var(--colour-text);
 }
 </style>
 

@@ -1,10 +1,10 @@
 const tokenStorageKey = "token";
 
-function getCookieString(token) {
-  return `${tokenStorageKey}=${token}; path=/attachments; SameSite=Strict`;
+function getCookieString(token?: string): string {
+  return `${tokenStorageKey}=${token ?? ""}; path=/attachments; SameSite=Strict`;
 }
 
-export function setToken(token, persist = false) {
+export function setToken(token: string, persist = false): void {
   document.cookie = getCookieString(token);
   sessionStorage.setItem(tokenStorageKey, token);
   if (persist === true) {
@@ -12,18 +12,18 @@ export function setToken(token, persist = false) {
   }
 }
 
-export function getToken() {
+export function getToken(): string | null {
   return sessionStorage.getItem(tokenStorageKey);
 }
 
-export function loadToken() {
+export function loadToken(): void {
   const token = localStorage.getItem(tokenStorageKey);
   if (token != null) {
     setToken(token, false);
   }
 }
 
-export function clearToken() {
+export function clearToken(): void {
   sessionStorage.removeItem(tokenStorageKey);
   localStorage.removeItem(tokenStorageKey);
   document.cookie = getCookieString() + "; expires=Thu, 01 Jan 1970 00:00:00 GMT";

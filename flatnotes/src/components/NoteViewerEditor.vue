@@ -1,24 +1,31 @@
-<script>
+<script setup lang="ts">
+import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import * as constants from "../constants";
-
-import { Editor } from "@toast-ui/vue-editor";
-import EventBus from "../eventBus";
-import LoadingIndicator from "./LoadingIndicator";
+import { eventBus } from "../eventBus";
+import LoadingIndicator from "./LoadingIndicator.vue";
+import ToastUiEditor from "./ToastUiEditor.vue";
+import ToastUiViewer from "./ToastUiViewer.vue";
+import Icon from "../ui/Icon.vue";
+import { vTooltip } from "../ui/tooltip";
 import Mousetrap from "mousetrap";
 import { Note } from "../classes";
-import { Viewer } from "@toast-ui/vue-editor";
-import api from "../api";
+import api, { ApiError } from "../api";
+import { toast } from "../composables/useToast";
+import { msgBoxConfirm } from "../composables/useModal";
+import type { EditorType, EditorPlugin, CustomHTMLRenderer } from "@toast-ui/editor";
+import type { NoteContentResponseModel } from "../types";
 import codeSyntaxHighlight from "@toast-ui/editor-plugin-code-syntax-highlight/dist/toastui-editor-plugin-code-syntax-highlight-all.js";
 
-const customHTMLRenderer = {
-  heading(node, { entering, getChildrenText }) {
+const customHTMLRenderer: CustomHTMLRenderer = {
+  heading(node: { level: number }, context: { entering: boolean; getChildrenText: (n: unknown) => string }) {
     const tagName = `h${node.level}`;
-    if (entering) {
+    if (context.entering) {
       return {
         type: "openTag",
         tagName,
         attributes: {
-          id: getChildrenText(node)
+          id: context
+            .getChildrenText(node)
             .toLowerCase()
             .replace(/[^a-z0-9-\s]*/g, "")
             .trim()
@@ -30,433 +37,344 @@ const customHTMLRenderer = {
   },
 };
 
-export default {
-  components: {
-    Viewer,
-    Editor,
-    LoadingIndicator,
+const viewerOptions = {
+  customHTMLRenderer,
+  plugins: [codeSyntaxHighlight as unknown as EditorPlugin],
+  extendedAutolinks: true,
+};
+
+const editorOptions = {
+  customHTMLRenderer,
+  plugins: [codeSyntaxHighlight as unknown as EditorPlugin],
+};
+
+const props = withDefaults(
+  defineProps<{
+    titleToLoad?: string | null;
+    authType?: string | null;
+  }>(),
+  {
+    titleToLoad: null,
+    authType: null,
   },
+);
 
-  props: {
-    titleToLoad: { type: String, default: null },
-    authType: { type: String, default: null },
-  },
+const emit = defineEmits<{ "note-deleted": [] }>();
 
-  data: function () {
-    return {
-      editMode: false,
-      draftSaveTimeout: null,
-      currentNote: null,
-      titleInput: null,
-      initialContent: null,
-      noteLoadFailed: false,
-      noteLoadFailedIcon: null,
-      noteLoadFailedMessage: "Failed to load Note",
-      viewerOptions: {
-        customHTMLRenderer: customHTMLRenderer,
-        plugins: [codeSyntaxHighlight],
-        extendedAutolinks: true,
-      },
-      editorOptions: {
-        customHTMLRenderer: customHTMLRenderer,
-        plugins: [codeSyntaxHighlight],
-      },
-    };
-  },
+const editMode = ref(false);
+let draftSaveTimeout: number | null = null;
+const currentNote = ref<Note | null>(null);
+const titleInput = ref<string | null>(null);
+const initialContent = ref<string | null>(null);
+const noteLoadFailed = ref(false);
+const noteLoadFailedIcon = ref<string | null>(null);
+const noteLoadFailedMessage = ref("Failed to load Note");
 
-  computed: {
-    canModify: function () {
-      return (
-        this.authType != null && this.authType != constants.authTypes.readOnly
-      );
-    },
-  },
+const toastUiEditor = ref<{ invoke: <T = unknown>(method: string, ...args: unknown[]) => T } | null>(null);
 
-  watch: {
-    titleToLoad: function () {
-      if (this.titleToLoad !== this.currentNote?.title) {
-        this.init();
-      }
-    },
-  },
+const canModify = computed(
+  () => props.authType != null && props.authType !== constants.authTypes.readOnly,
+);
 
-  methods: {
-    loadNote: function (title) {
-      let parent = this;
-      this.noteLoadFailed = false;
-      api(`/api/notes/${encodeURIComponent(title)}`)
-        .then(function (response) {
-          parent.currentNote = new Note(
-            response.title,
-            response.lastModified,
-            response.content
-          );
-          // EventBus.$emit("updateDocumentTitle", parent.currentNote.title);
-        })
-        .catch(function (error) {
-          if (error.handled) {
-            return;
-          } else if (
-            typeof error.response !== "undefined" &&
-            error.response.status == 404
-          ) {
-            parent.noteLoadFailedIcon = "file-earmark-x";
-            parent.noteLoadFailedMessage = "Note not found";
-            parent.noteLoadFailed = true;
-          } else {
-            EventBus.$emit("unhandledServerError", error);
-            parent.noteLoadFailed = true;
-          }
-        });
-    },
-
-    getContentForEditor: function () {
-      let draftContent = localStorage.getItem(this.currentNote.title);
-      if (draftContent) {
-        if (confirm("Do you want to resume the saved draft?")) {
-          return draftContent;
-        } else {
-          localStorage.removeItem(this.currentNote.title);
-        }
-      }
-      return this.currentNote.content;
-    },
-
-    setBeforeUnloadConfirmation: function (enable = true) {
-      if (enable) {
-        window.onbeforeunload = function () {
-          return true;
-        };
-      } else {
-        window.onbeforeunload = null;
-      }
-    },
-
-    setEditMode: function (editMode = true) {
-      let parent = this;
-
-      // To Edit Mode
-      if (editMode === true) {
-        this.setBeforeUnloadConfirmation(true);
-        this.titleInput = this.currentNote.title;
-        let draftContent = localStorage.getItem(this.currentNote.title);
-
-        if (draftContent) {
-          this.$bvModal
-            .msgBoxConfirm(
-              "There is an unsaved draft of this note stored in this browser. Do you want to resume the draft version or delete it?",
-              {
-                centered: true,
-                title: "Resume Draft?",
-                okTitle: "Resume Draft",
-                cancelTitle: "Delete Draft",
-                cancelVariant: "danger",
-              }
-            )
-            .then(function (response) {
-              if (response == true) {
-                parent.initialContent = draftContent;
-              } else {
-                parent.initialContent = parent.currentNote.content;
-                localStorage.removeItem(parent.currentNote.title);
-              }
-              parent.editMode = true;
-            });
-        } else {
-          this.initialContent = this.currentNote.content;
-          this.editMode = true;
-        }
-      }
-      // To View Mode
-      else {
-        this.titleInput = null;
-        this.initialContent = null;
-        this.setBeforeUnloadConfirmation(false);
-        this.editMode = false;
-      }
-    },
-
-    getEditorContent: function () {
-      if (typeof this.$refs.toastUiEditor != "undefined") {
-        return this.$refs.toastUiEditor.invoke("getMarkdown");
-      } else {
-        return null;
-      }
-    },
-
-    saveDefaultEditorMode: function () {
-      let isWysiwygMode = this.$refs.toastUiEditor.invoke("isWysiwygMode");
-      localStorage.setItem(
-        "defaultEditorMode",
-        isWysiwygMode ? "wysiwyg" : "markdown"
-      );
-    },
-
-    loadDefaultEditorMode: function () {
-      let defaultWysiwygMode = localStorage.getItem("defaultEditorMode");
-      if (defaultWysiwygMode) {
-        return defaultWysiwygMode;
-      } else {
-        return "markdown";
-      }
-    },
-
-    clearDraftSaveTimeout: function () {
-      if (this.draftSaveTimeout != null) {
-        clearTimeout(this.draftSaveTimeout);
-      }
-    },
-
-    startDraftSaveTimeout: function () {
-      this.clearDraftSaveTimeout();
-      this.draftSaveTimeout = setTimeout(this.saveDraft, 1000);
-    },
-
-    saveDraft: function () {
-      let content = this.getEditorContent();
-      if (content) {
-        localStorage.setItem(this.currentNote.title, content);
-      }
-    },
-
-    existingTitleToast: function () {
-      this.$bvToast.toast(
-        "A note with this title already exists. Please try again with a new title.",
-        {
-          title: "Duplicate ✘",
-          variant: "danger",
-          noCloseButton: true,
-          toaster: "b-toaster-bottom-right",
-        }
-      );
-    },
-
-    saveNote: function () {
-      let parent = this;
-      let newContent = this.getEditorContent();
-
-      this.saveDefaultEditorMode();
-
-      // Title Validation
-      if (typeof this.titleInput == "string") {
-        this.titleInput = this.titleInput.trim();
-      }
-      if (!this.titleInput) {
-        this.$bvToast.toast("Cannot save note without a title ✘", {
-          variant: "danger",
-          noCloseButton: true,
-          toaster: "b-toaster-bottom-right",
-        });
+function loadNote(title: string): void {
+  noteLoadFailed.value = false;
+  api<NoteContentResponseModel>(`/api/notes/${encodeURIComponent(title)}`)
+    .then((response) => {
+      currentNote.value = new Note(response.title, response.lastModified, response.content);
+    })
+    .catch((error) => {
+      const err = error as ApiError;
+      if (err.handled) {
         return;
-      }
-
-      const reservedCharacters = /[<>:"/\\|?*]/;
-      if (reservedCharacters.test(this.titleInput)) {
-        this.$bvToast.toast(
-          'Due to filename restrictions, the following characters are not allowed in a note title: <>:"/\\|?*',
-          {
-            variant: "danger",
-            noCloseButton: true,
-            toaster: "b-toaster-bottom-right",
-          }
-        );
-        return;
-      }
-
-      if (this.currentNote.lastModified == null) { // New Note
-        api(`/api/notes`, {
-          body: {
-            title: this.titleInput,
-            content: newContent,
-          },
-        })
-          .then(this.saveNoteResponseHandler)
-          .catch(function (error) {
-            if (error.handled) {
-              return;
-            } else if (
-              typeof error.response !== "undefined" &&
-              error.response.status == 409
-            ) {
-              parent.existingTitleToast();
-            } else {
-              EventBus.$emit("unhandledServerError", error);
-            }
-          });
-      } else if (newContent != this.currentNote.content || this.titleInput != this.currentNote.title) { // Modified Note
-        api(`/api/notes/${encodeURIComponent(this.currentNote.title)}`, {
-          method: "PATCH",
-          body: {
-            newTitle: this.titleInput,
-            newContent: newContent,
-          },
-        })
-          .then(this.saveNoteResponseHandler)
-          .catch(function (error) {
-            if (error.handled) {
-              return;
-            } else if (
-              typeof error.response !== "undefined" &&
-              error.response.status == 409
-            ) {
-              parent.existingTitleToast();
-            } else {
-              EventBus.$emit("unhandledServerError", error);
-            }
-          });
-      } else { // No Change
-        localStorage.removeItem(this.currentNote.title);
-        this.setEditMode(false);
-        this.noteSavedToast();
-      }
-    },
-
-    saveNoteResponseHandler: function (response) {
-      localStorage.removeItem(this.currentNote.title);
-      this.currentNote = new Note(
-        response.title,
-        response.lastModified,
-        response.content
-      );
-      EventBus.$emit("updateNoteTitle", this.currentNote.title);
-      history.replaceState(null, "", this.currentNote.href);
-      this.setEditMode(false);
-      this.noteSavedToast();
-    },
-
-    noteSavedToast: function () {
-      this.$bvToast.toast("Note saved ✓", {
-        variant: "success",
-        noCloseButton: true,
-        toaster: "b-toaster-bottom-right",
-      });
-    },
-
-    cancelNote: function () {
-      localStorage.removeItem(this.currentNote.title);
-      if (this.currentNote.lastModified == null) {
-        // Cancelling a new note
-        EventBus.$emit("navigate", constants.basePaths.home);
+      } else if (err.status === 404) {
+        noteLoadFailedIcon.value = "file-earmark-x";
+        noteLoadFailedMessage.value = "Note not found";
+        noteLoadFailed.value = true;
       } else {
-        this.setEditMode(false);
-      }
-    },
-
-    confirmCancelNote: function () {
-      let parent = this;
-      let newContent = this.getEditorContent();
-      if (
-        newContent != this.currentNote.content ||
-        this.titleInput != this.currentNote.title
-      ) {
-        this.$bvModal
-          .msgBoxConfirm(
-            `Are you sure you want to close the note '${this.currentNote.title}' without saving?`,
-            {
-              centered: true,
-              title: "Confirm Closure",
-              okTitle: "Yes, Close",
-              okVariant: "warning",
-            }
-          )
-          .then(function (response) {
-            if (response == true) {
-              parent.cancelNote();
-            }
-          });
-      } else {
-        this.cancelNote();
-      }
-    },
-
-    deleteNote: function () {
-      let parent = this;
-      this.$bvModal
-        .msgBoxConfirm(
-          `Are you sure you want to delete the note '${this.currentNote.title}'?`,
-          {
-            centered: true,
-            title: "Confirm Deletion",
-            okTitle: "Delete",
-            okVariant: "danger",
-          }
-        )
-        .then(function (response) {
-          if (response == true) {
-            api(`/api/notes/${encodeURIComponent(parent.currentNote.title)}`, {
-              method: "DELETE",
-            })
-              .then(function () {
-                parent.$emit("note-deleted");
-                EventBus.$emit("navigate", constants.basePaths.home);
-              })
-              .catch(function (error) {
-                if (!error.handled) {
-                  EventBus.$emit("unhandledServerError", error);
-                }
-              });
-          }
-        });
-    },
-
-    init: function () {
-      this.currentNote = null;
-      if (this.titleToLoad) {
-        this.loadNote(this.titleToLoad);
-        this.setEditMode(false);
-      } else {
-        this.currentNote = new Note();
-        this.setEditMode(true);
-      }
-    },
-  },
-
-  created: function () {
-    let parent = this;
-
-    // 'e' to edit
-    Mousetrap.bind("e", function () {
-      if (parent.editMode == false && parent.canModify) {
-        parent.setEditMode(true);
+        eventBus.emit("unhandled-server-error", { error });
+        noteLoadFailed.value = true;
       }
     });
+}
 
-    // 'ctrl+s' to save
-    // Mousetrap.bind("ctrl+s", function () {
-    //   if (parent.editMode == true) {
-    //     parent.saveNote();
-    //     return false;
-    //   }
-    // });
+function setBeforeUnloadConfirmation(enable = true): void {
+  if (enable) {
+    window.onbeforeunload = () => true;
+  } else {
+    window.onbeforeunload = null;
+  }
+}
 
-    this.init();
+function setEditMode(edit = true): void {
+  // To Edit Mode
+  if (edit === true) {
+    setBeforeUnloadConfirmation(true);
+    titleInput.value = currentNote.value!.title;
+    const draftContent = localStorage.getItem(currentNote.value!.title);
+
+    if (draftContent) {
+      msgBoxConfirm(
+        "There is an unsaved draft of this note stored in this browser. Do you want to resume the draft version or delete it?",
+        {
+          centered: true,
+          title: "Resume Draft?",
+          okVariant: "primary",
+        },
+      ).then((response) => {
+        if (response === true) {
+          initialContent.value = draftContent;
+        } else {
+          initialContent.value = currentNote.value!.content ?? "";
+          localStorage.removeItem(currentNote.value!.title);
+        }
+        editMode.value = true;
+      });
+    } else {
+      initialContent.value = currentNote.value!.content ?? "";
+      editMode.value = true;
+    }
+  }
+  // To View Mode
+  else {
+    titleInput.value = null;
+    initialContent.value = null;
+    setBeforeUnloadConfirmation(false);
+    editMode.value = false;
+  }
+}
+
+function getEditorContent(): string | null {
+  if (toastUiEditor.value) {
+    return toastUiEditor.value.invoke<string>("getMarkdown");
+  }
+  return null;
+}
+
+function saveDefaultEditorMode(): void {
+  const isWysiwygMode = toastUiEditor.value!.invoke<boolean>("isWysiwygMode");
+  localStorage.setItem("defaultEditorMode", isWysiwygMode ? "wysiwyg" : "markdown");
+}
+
+function loadDefaultEditorMode(): EditorType {
+  const defaultEditorMode = localStorage.getItem("defaultEditorMode");
+  return (defaultEditorMode as EditorType) ?? "markdown";
+}
+
+function clearDraftSaveTimeout(): void {
+  if (draftSaveTimeout != null) {
+    clearTimeout(draftSaveTimeout);
+  }
+}
+
+function startDraftSaveTimeout(): void {
+  clearDraftSaveTimeout();
+  draftSaveTimeout = window.setTimeout(saveDraft, 1000);
+}
+
+function saveDraft(): void {
+  const content = getEditorContent();
+  if (content) {
+    localStorage.setItem(currentNote.value!.title, content);
+  }
+}
+
+function existingTitleToast(): void {
+  toast("A note with this title already exists. Please try again with a new title.", { variant: "danger" });
+}
+
+function saveNoteResponseHandler(response: NoteContentResponseModel): void {
+  localStorage.removeItem(currentNote.value!.title);
+  currentNote.value = new Note(response.title, response.lastModified, response.content);
+  eventBus.emit("update-note-title", { title: currentNote.value.title });
+  history.replaceState(null, "", currentNote.value.href);
+  setEditMode(false);
+  noteSavedToast();
+}
+
+function noteSavedToast(): void {
+  toast("Note saved ✓", { variant: "success" });
+}
+
+function saveNote(): void {
+  const newContent = getEditorContent();
+
+  saveDefaultEditorMode();
+
+  // Title Validation
+  if (typeof titleInput.value === "string") {
+    titleInput.value = titleInput.value.trim();
+  }
+  if (!titleInput.value) {
+    toast("Cannot save note without a title ✘", { variant: "danger" });
+    return;
+  }
+
+  const reservedCharacters = /[<>:"/\\|?*]/;
+  if (reservedCharacters.test(titleInput.value)) {
+    toast('Due to filename restrictions, the following characters are not allowed in a note title: <>:"/\\|?*', {
+      variant: "danger",
+    });
+    return;
+  }
+
+  if (currentNote.value!.lastModified == null) {
+    // New Note
+    api<NoteContentResponseModel>(`/api/notes`, {
+      body: {
+        title: titleInput.value,
+        content: newContent,
+      },
+    })
+      .then(saveNoteResponseHandler)
+      .catch((error) => {
+        const err = error as ApiError;
+        if (err.handled) {
+          return;
+        } else if (err.status === 409) {
+          existingTitleToast();
+        } else {
+          eventBus.emit("unhandled-server-error", { error });
+        }
+      });
+  } else if (newContent !== currentNote.value!.content || titleInput.value !== currentNote.value!.title) {
+    // Modified Note
+    api<NoteContentResponseModel>(`/api/notes/${encodeURIComponent(currentNote.value!.title)}`, {
+      method: "PATCH",
+      body: {
+        newTitle: titleInput.value,
+        newContent: newContent,
+      },
+    })
+      .then(saveNoteResponseHandler)
+      .catch((error) => {
+        const err = error as ApiError;
+        if (err.handled) {
+          return;
+        } else if (err.status === 409) {
+          existingTitleToast();
+        } else {
+          eventBus.emit("unhandled-server-error", { error });
+        }
+      });
+  } else {
+    // No Change
+    localStorage.removeItem(currentNote.value!.title);
+    setEditMode(false);
+    noteSavedToast();
+  }
+}
+
+function cancelNote(): void {
+  localStorage.removeItem(currentNote.value!.title);
+  if (currentNote.value!.lastModified == null) {
+    // Cancelling a new note
+    eventBus.emit("navigate", { href: constants.basePaths.home });
+  } else {
+    setEditMode(false);
+  }
+}
+
+function confirmCancelNote(): void {
+  const newContent = getEditorContent();
+  if (
+    newContent !== currentNote.value!.content ||
+    titleInput.value !== currentNote.value!.title
+  ) {
+    msgBoxConfirm(
+      `Are you sure you want to close the note '${currentNote.value!.title}' without saving?`,
+      {
+        centered: true,
+        title: "Confirm Closure",
+        okVariant: "warning",
+      },
+    ).then((response) => {
+      if (response === true) {
+        cancelNote();
+      }
+    });
+  } else {
+    cancelNote();
+  }
+}
+
+function deleteNote(): void {
+  msgBoxConfirm(`Are you sure you want to delete the note '${currentNote.value!.title}'?`, {
+    centered: true,
+    title: "Confirm Deletion",
+    okVariant: "danger",
+  }).then((response) => {
+    if (response === true) {
+      api<void>(`/api/notes/${encodeURIComponent(currentNote.value!.title)}`, {
+        method: "DELETE",
+      })
+        .then(() => {
+          emit("note-deleted");
+          eventBus.emit("navigate", { href: constants.basePaths.home });
+        })
+        .catch((error) => {
+          if (!(error as ApiError).handled) {
+            eventBus.emit("unhandled-server-error", { error });
+          }
+        });
+    }
+  });
+}
+
+function init(): void {
+  currentNote.value = null;
+  if (props.titleToLoad) {
+    loadNote(props.titleToLoad);
+    setEditMode(false);
+  } else {
+    currentNote.value = new Note();
+    setEditMode(true);
+  }
+}
+
+watch(
+  () => props.titleToLoad,
+  () => {
+    if (props.titleToLoad !== currentNote.value?.title) {
+      init();
+    }
   },
-};
+);
+
+onMounted(() => {
+  // 'e' to edit
+  Mousetrap.bind("e", () => {
+    if (editMode.value === false && canModify.value) {
+      setEditMode(true);
+    }
+  });
+  init();
+});
+
+onBeforeUnmount(() => {
+  Mousetrap.unbind("e");
+  clearDraftSaveTimeout();
+  setBeforeUnloadConfirmation(false);
+});
 </script>
 
 <template>
   <!-- Note -->
   <div class="pb-4">
     <!-- Loading -->
-    <div
-      v-if="currentNote == null"
-      class="h-100 d-flex flex-column justify-content-center"
-    >
+    <div v-if="currentNote == null" class="h-100 d-flex flex-column justify-content-center">
       <LoadingIndicator
         :failed="noteLoadFailed"
-        :failedBootstrapIcon="noteLoadFailedIcon"
-        :failedMessage="noteLoadFailedMessage"
+        :failed-icon="noteLoadFailedIcon ?? undefined"
+        :failed-message="noteLoadFailedMessage"
       />
     </div>
 
     <!-- Loaded -->
     <div v-else class="d-flex flex-column h-100">
       <!-- Buttons -->
-      <div
-        class="d-flex justify-content-between flex-wrap align-items-end mb-3"
-      >
+      <div class="d-flex justify-content-between flex-wrap align-items-end mb-3">
         <!-- Title -->
-        <h2 v-if="editMode == false" class="title" :title="currentNote.title">
+        <h2 v-if="editMode === false" class="title" :title="currentNote.title">
           {{ currentNote.title }}
         </h2>
         <input
@@ -471,59 +389,48 @@ export default {
         <div class="d-flex">
           <!-- Edit -->
           <button
-            v-if="canModify && editMode == false && noteLoadFailed == false"
+            v-if="canModify && editMode === false && noteLoadFailed === false"
             type="button"
             class="bttn"
             @click="setEditMode(true)"
-            v-b-tooltip.hover
-            title="Keyboard Shortcut: e"
+            v-tooltip="'Keyboard Shortcut: e'"
           >
-            <b-icon icon="pencil-square"></b-icon> Edit
+            <Icon name="pencil-square" /> Edit
           </button>
 
           <!-- Delete -->
           <button
-            v-if="canModify && editMode == false && noteLoadFailed == false"
+            v-if="canModify && editMode === false && noteLoadFailed === false"
             type="button"
             class="bttn"
             @click="deleteNote"
           >
-            <b-icon icon="trash"></b-icon> Delete
+            <Icon name="trash" /> Delete
           </button>
 
           <!-- Cancel -->
-          <button
-            v-if="editMode == true"
-            type="button"
-            class="bttn"
-            @click="confirmCancelNote"
-          >
-            <b-icon icon="arrow-return-left"></b-icon> Cancel
+          <button v-if="editMode === true" type="button" class="bttn" @click="confirmCancelNote">
+            <Icon name="arrow-return-left" /> Cancel
           </button>
 
           <!-- Save -->
-          <button
-            v-if="editMode == true"
-            type="button"
-            class="bttn"
-            @click="saveNote"
-          >
-            <b-icon icon="check-square"></b-icon> Save
+          <button v-if="editMode === true" type="button" class="bttn" @click="saveNote">
+            <Icon name="check-square" /> Save
           </button>
         </div>
       </div>
 
       <!-- Viewer -->
-      <div v-if="editMode == false" class="note note-viewer">
-        <viewer :initialValue="currentNote.content" :options="viewerOptions" />
+      <div v-if="editMode === false" class="note note-viewer">
+        <ToastUiViewer :initial-value="currentNote.content" :options="viewerOptions" />
       </div>
 
       <!-- Editor -->
       <div v-else class="note flex-grow-1">
-        <editor
-          :initialValue="initialContent"
-          :initialEditType="loadDefaultEditorMode()"
-          previewStyle="tab"
+        <ToastUiEditor
+          :initial-value="initialContent ?? undefined"
+          :initial-edit-type="loadDefaultEditorMode()"
+          preview-style="tab"
           ref="toastUiEditor"
           :options="editorOptions"
           height="100%"

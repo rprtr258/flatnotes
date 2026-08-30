@@ -1,72 +1,61 @@
-<script>
+<script setup lang="ts">
+import { ref, watch, onMounted, onUnmounted } from "vue";
 import * as constants from "../constants";
+import { eventBus } from "../eventBus";
+import Icon from "../ui/Icon.vue";
+import { toast } from "../composables/useToast";
 
-import EventBus from "../eventBus";
+const props = defineProps<{ initialValue?: string }>();
 
-export default {
-  props: { initialValue: { type: String } },
+const searchTermInput = ref<string | null>(null);
+const includeHighlightClass = ref(false);
+const input = ref<HTMLInputElement | null>(null);
 
-  data: function () {
-    return {
-      searchTermInput: null,
-      includeHighlightClass: false,
-    };
-  },
+function search(): void {
+  if (searchTermInput.value) {
+    searchTermInput.value = searchTermInput.value.trim();
+  }
+  if (searchTermInput.value) {
+    eventBus.emit("navigate", {
+      href: `${constants.basePaths.search}?${constants.params.searchTerm}=${encodeURIComponent(searchTermInput.value)}`,
+    });
+  } else {
+    toast("Please enter a search term ✘", { variant: "danger" });
+  }
+}
 
-  watch: {
-    initialValue: function () {
-      this.init();
-    },
-  },
+let highlightTimer: number | undefined;
+function highlightSearchInput(): void {
+  includeHighlightClass.value = true;
+  highlightTimer = window.setTimeout(() => {
+    includeHighlightClass.value = false;
+  }, 1500);
+}
 
-  methods: {
-    search: function () {
-      if (this.searchTermInput) {
-        this.searchTermInput = this.searchTermInput.trim();
-      }
-      if (this.searchTermInput) {
-        EventBus.$emit(
-          "navigate",
-          `${constants.basePaths.search}?${
-            constants.params.searchTerm
-          }=${encodeURIComponent(this.searchTermInput)}`
-        );
-      } else {
-        this.$bvToast.toast("Please enter a search term ✘", {
-          variant: "danger",
-          noCloseButton: true,
-          toaster: "b-toaster-bottom-right",
-        });
-      }
-    },
+function init(): void {
+  searchTermInput.value = props.initialValue ?? null;
+}
 
-    highlightSearchInput: function () {
-      let parent = this;
-      this.includeHighlightClass = true;
-      setTimeout(function () {
-        parent.includeHighlightClass = false;
-      }, 1500);
-    },
+watch(
+  () => props.initialValue,
+  () => init(),
+);
 
-    init: function () {
-      this.searchTermInput = this.initialValue;
-    },
-  },
+onMounted(() => {
+  input.value?.focus();
+  input.value?.select();
+  eventBus.on("highlight-search-input", highlightSearchInput);
+  init();
+});
 
-  mounted: function () {
-    this.$refs.input.focus();
-    this.$refs.input.select();
-  },
-
-  created: function () {
-    EventBus.$on("highlight-search-input", this.highlightSearchInput);
-    this.init();
-  },
-};
+onUnmounted(() => {
+  eventBus.off("highlight-search-input", highlightSearchInput);
+  if (highlightTimer) window.clearTimeout(highlightTimer);
+});
 </script>
 
 <template>
-  <form v-on:submit.prevent="search" class="w-100">
+  <form @submit.prevent="search" class="w-100">
     <div class="input-group w-100">
       <input
         id="search-input"
@@ -78,11 +67,9 @@ export default {
         placeholder="Search"
         v-model="searchTermInput"
       />
-      <div class="input-group-append">
-        <button class="btn" type="submit">
-          <b-icon icon="search"></b-icon>
-        </button>
-      </div>
+      <button class="btn" type="submit">
+        <Icon name="search" />
+      </button>
     </div>
   </form>
 </template>
@@ -108,8 +95,8 @@ export default {
 .btn {
   border: 1px solid var(--colour-border);
 
-  svg {
-    color: var(--colour-text-muted);
+  svg, .bi {
+    color: var(--colour-text);
   }
 }
 
@@ -124,7 +111,7 @@ export default {
   }
 
   &::placeholder {
-    color: var(--colour-text-muted);
+    color: var(--colour-text);
   }
 }
 </style>
