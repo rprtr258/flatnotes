@@ -1,51 +1,51 @@
-<script>
+<script setup lang="ts">
+import { computed } from "vue";
 import * as constants from "../constants";
+import { eventBus } from "../eventBus";
+import Logo from "./Logo.vue";
+import Icon from "../ui/Icon.vue";
+import { vTooltip } from "../ui/tooltip";
 
-import EventBus from "../eventBus";
-import Logo from "./Logo";
-
-export default {
-  components: {
-    Logo,
+const props = withDefaults(
+  defineProps<{
+    showLogo?: boolean;
+    authType?: string | null;
+    darkTheme?: boolean;
+  }>(),
+  {
+    showLogo: true,
+    authType: null,
+    darkTheme: false,
   },
+);
 
-  props: {
-    showLogo:  { type: Boolean, default: true  },
-    authType:  { type: String,  default: null  },
-    darkTheme: { type: Boolean, default: false },
-  },
+defineEmits<{
+  logout: [];
+  toggleTheme: [];
+  search: [];
+}>();
 
-  computed: {
-    azHref: function () {
-      let params = new URLSearchParams();
-      params.set(constants.params.searchTerm, "*");
-      params.set(constants.params.sortBy, constants.searchSortOptions.title);
-      params.set(constants.params.showHighlights, false);
-      return `${constants.basePaths.search}?${params.toString()}`;
-    },
+const azHref = computed(() => {
+  const sp = new URLSearchParams();
+  sp.set(constants.params.searchTerm, "*");
+  sp.set(constants.params.sortBy, String(constants.searchSortOptions.title));
+  sp.set(constants.params.showHighlights, String(false));
+  return `${constants.basePaths.search}?${sp.toString()}`;
+});
 
-    showLogOutButton: function () {
-      return this.authType != null && ![
-        constants.authTypes.none,
-        constants.authTypes.readOnly,
-      ].includes(this.authType);
-    },
+const showLogOutButton = computed(
+  () =>
+    props.authType != null &&
+    ![constants.authTypes.none, constants.authTypes.readOnly].includes(props.authType as never),
+);
 
-    showNewButton: function () {
-      return this.authType != null && this.authType != constants.authTypes.readOnly;
-    },
-  },
+const showNewButton = computed(
+  () => props.authType != null && props.authType !== constants.authTypes.readOnly,
+);
 
-  methods: {
-    navigate: function (href, event) {
-      EventBus.$emit("navigate", href, event);
-    },
-  },
-
-  created: function () {
-    this.constants = constants;
-  },
-};
+function navigate(href: string, event?: Event): void {
+  eventBus.emit("navigate", { href, event });
+}
 </script>
 
 <template>
@@ -55,7 +55,7 @@ export default {
       :href="constants.basePaths.home"
       @click.prevent="navigate(constants.basePaths.home, $event)"
     >
-      <Logo :class="{ invisible: !showLogo }" responsive></Logo>
+      <Logo :class="{ invisible: !showLogo }" responsive />
     </a>
 
     <!-- Buttons -->
@@ -67,7 +67,7 @@ export default {
         class="bttn"
         @click="$emit('logout')"
       >
-        <b-icon icon="box-arrow-right"></b-icon> Log Out
+        <Icon name="box-arrow-right" /> Log Out
       </button>
 
       <!-- New Note -->
@@ -76,10 +76,9 @@ export default {
         :href="constants.basePaths.new"
         class="bttn"
         @click.prevent="navigate(constants.basePaths.new, $event)"
-        v-b-tooltip.hover
-        title="Create a New Note"
+        v-tooltip="'Create a New Note'"
       >
-        <b-icon icon="plus-circle"></b-icon> New
+        <Icon name="plus-circle" /> New
       </a>
 
       <!-- Theme Toggle -->
@@ -88,10 +87,9 @@ export default {
         id="theme-button"
         class="bttn"
         @click="$emit('toggleTheme')"
-        v-b-tooltip.hover
-        title="Toggle Theme"
+        v-tooltip="'Toggle Theme'"
       >
-        <b-icon :icon="darkTheme ? 'sun' : 'moon'"></b-icon>
+        <Icon :name="darkTheme ? 'sun' : 'moon'" />
       </button>
 
       <!-- A-Z -->
@@ -99,8 +97,7 @@ export default {
         :href="azHref"
         class="bttn"
         @click.prevent="navigate(azHref, $event)"
-        v-b-tooltip.hover
-        title="Show All Notes"
+        v-tooltip="'Show All Notes'"
         >A-Z</a
       >
 
@@ -110,10 +107,9 @@ export default {
         id="search-button"
         class="bttn"
         @click="$emit('search')"
-        v-b-tooltip.hover
-        title="Search (Keyboard Shortcut: /)"
+        v-tooltip="'Search (Keyboard Shortcut: /)'"
       >
-        <b-icon icon="search"></b-icon>
+        <Icon name="search" />
       </button>
     </div>
   </div>

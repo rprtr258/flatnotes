@@ -1,12 +1,20 @@
-<script>
-export default {
-  props: {
-    showLoader:          { type: Boolean, default: true             },
-    failed:              { type: Boolean                            },
-    failedBootstrapIcon: { type: String                             },
-    failedMessage:       { type: String,  default: "Loading Failed" },
+<script setup lang="ts">
+import Icon from "../ui/Icon.vue";
+
+withDefaults(
+  defineProps<{
+    showLoader?: boolean;
+    failed?: boolean;
+    failedIcon?: string;
+    failedMessage?: string;
+  }>(),
+  {
+    showLoader: true,
+    failed: false,
+    failedIcon: undefined,
+    failedMessage: "Loading Failed",
   },
-};
+);
 </script>
 
 <template>
@@ -16,10 +24,10 @@ export default {
       v-else-if="failed"
       class="d-flex flex-column align-items-center failure-message"
     >
-      <b-icon
+      <Icon
         class="failed-icon mb-3"
-        :icon="failedBootstrapIcon || 'cone-striped'"
-      ></b-icon>
+        :name="failedIcon || 'cone-striped'"
+      />
       <p>{{ failedMessage }}</p>
     </div>
   </div>

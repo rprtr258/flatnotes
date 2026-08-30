@@ -1,9 +1,5 @@
-<script>
-export default {
-  props: {
-    responsive: { type: Boolean, default: false },
-  },
-};
+<script setup lang="ts">
+defineProps<{ responsive?: boolean }>();
 </script>
 
 <template>
@@ -28,7 +24,7 @@ export default {
       viewBox="0 0 149 29"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      class="part-name ml-2"
+      class="part-name ms-2"
       :class="{ 'responsive-hide': responsive }"
     >
       <path
