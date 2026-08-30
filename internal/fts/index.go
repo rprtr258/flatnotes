@@ -90,15 +90,15 @@ func (idx *Index[D]) Delete(id string) {
 	delete(idx.Documents, id)
 }
 
-type Hit[D Document] struct {
-	Doc   D
+type Hit struct {
+	ID    string
 	Score float64
 	Terms []Term
 	Tags  []string
 }
 
 // search queries the index for the given text.
-func (idx *Index[D]) Search(query string, tags []string) []Hit[D] {
+func (idx *Index[D]) Search(query string, tags []string) []Hit {
 	idx.mu.RLock()
 	defer idx.mu.RUnlock()
 
@@ -121,10 +121,10 @@ func (idx *Index[D]) Search(query string, tags []string) []Hit[D] {
 		}
 	}
 
-	return fun.MapToSlice(scores, func(id string, score float64) Hit[D] {
-		return Hit[D]{
+	return fun.MapToSlice(scores, func(id string, score float64) Hit {
+		return Hit{
+			ID:    id,
 			Score: score,
-			Doc:   idx.Documents[id],
 			Terms: queryTokens,
 			Tags:  docTags[id],
 		}

@@ -110,10 +110,10 @@ type SearchResult struct {
 	TagMatches                         []string
 }
 
-func (app *App) newSearchResult(hit fts.Hit[NoteDocument]) (SearchResult, error) {
-	note, err := app.getNote(hit.Doc.ID())
+func (app *App) newSearchResult(hit fts.Hit) (SearchResult, error) {
+	note, err := app.getNote(hit.ID)
 	if err != nil {
-		return SearchResult{}, fmt.Errorf("get note %q: %w", hit.Doc.ID(), err)
+		return SearchResult{}, fmt.Errorf("get note %q: %w", hit.ID, err)
 	}
 
 	// If the search was ordered using a text field then hit.score is the
@@ -128,7 +128,7 @@ func (app *App) newSearchResult(hit fts.Hit[NoteDocument]) (SearchResult, error)
 		// 	titleHighlights += strings.Join(field, "\n")
 		// case "Content":
 		//	contentHighlights += strings.Join(field, "\n")
-		contentHighlights += re.ReplaceAllStringFunc(hit.Doc.Content, func(s string) string {
+		contentHighlights += re.ReplaceAllStringFunc(app.Index.Documents[hit.ID].Content, func(s string) string {
 			return "<mark>" + s + "</mark>"
 		})
 		// case "Tags":
@@ -300,12 +300,12 @@ func (app *App) Search(
 
 	phrase = strings.TrimSpace(phrase)
 
-	var hits []fts.Hit[NoteDocument]
+	var hits []fts.Hit
 	// Parse Query
 	if phrase == "*" {
-		hits = fun.MapToSlice(app.Index.Documents, func(_ string, doc NoteDocument) fts.Hit[NoteDocument] {
-			return fts.Hit[NoteDocument]{
-				Doc:   doc,
+		hits = fun.MapToSlice(app.Index.Documents, func(_ string, doc NoteDocument) fts.Hit {
+			return fts.Hit{
+				ID:    doc.ID(),
 				Score: 0,
 				Terms: nil,
 			}
@@ -333,19 +333,19 @@ func (app *App) Search(
 		)
 	}
 
-	slices.SortFunc(hits, func(i, j fts.Hit[NoteDocument]) int {
+	slices.SortFunc(hits, func(i, j fts.Hit) int {
 		if i.Score != j.Score {
 			return cmp.Compare(j.Score, i.Score)
 		}
 
-		return cmp.Compare(j.Doc.Modtime.Unix(), i.Doc.Modtime.Unix())
+		return cmp.Compare(app.Index.Documents[j.ID].Modtime.Unix(), app.Index.Documents[i.ID].Modtime.Unix())
 	})
 
 	if limit > 0 {
 		hits = fun.Subslice(0, limit, hits...)
 	}
 
-	return fun.MapErr[SearchResultModel](func(hit fts.Hit[NoteDocument]) (SearchResultModel, error) {
+	return fun.MapErr[SearchResultModel](func(hit fts.Hit) (SearchResultModel, error) {
 		searchRes, err := app.newSearchResult(hit)
 		if err != nil {
 			return SearchResultModel{}, fmt.Errorf("map search result %v: %w", hit, err)
@@ -400,12 +400,12 @@ func (app *App) GetNote(title string, includeContent bool) (NoteContentResponseM
 	}, nil
 }
 
-func (app *App) CreateNote(data NotePostModel) (NoteContentResponseModel, error) {
-	if !isValidTitle(data.Title) {
+func (app *App) CreateNote(title, content string) (NoteContentResponseModel, error) {
+	if !isValidTitle(title) {
 		return NoteContentResponseModel{}, ErrTitleInvalid
 	}
 
-	note, lastModified, err := createNote(app.Dir, data.Title, data.Content)
+	note, lastModified, err := createNote(app.Dir, title, content)
 	if err != nil {
 		return NoteContentResponseModel{}, err
 	}
@@ -415,7 +415,7 @@ func (app *App) CreateNote(data NotePostModel) (NoteContentResponseModel, error)
 			Title:        note.Title,
 			LastModified: lastModified.Unix(),
 		},
-		Content: &data.Content,
+		Content: &content,
 	}, nil
 }
 

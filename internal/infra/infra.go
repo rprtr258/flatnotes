@@ -145,13 +145,16 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 
 		// Create a new note.
 		fapp.Post("/api/notes", authenticate, func(c *fiber.Ctx) error {
-			var data internal.NotePostModel
+			var data struct {
+				Title   string `json:"title"`
+				Content string `json:"content"`
+			}
 			if err := c.BodyParser(&data); err != nil {
 				return fiber.NewError(fiber.StatusBadRequest, err.Error())
 			}
 			data.Title = strings.TrimSpace(data.Title)
 
-			res, err := app.CreateNote(data)
+			res, err := app.CreateNote(data.Title, data.Content)
 			if err != nil {
 				switch err {
 				case internal.ErrTitleInvalid:
@@ -248,7 +251,7 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 	// TODO: hardcode auth type in frontend
 	fapp.Get("/api/config", func(c *fiber.Ctx) error {
 		return c.JSON(internal.ConfigModel{
-			AuthType: cfg.AuthType,
+			AuthType: string(cfg.AuthType),
 		})
 	})
 

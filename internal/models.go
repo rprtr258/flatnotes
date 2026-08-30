@@ -1,7 +1,5 @@
 package internal
 
-import "github.com/rprtr258/flatnotes/internal/config"
-
 type TokenModel struct {
 	// Use of BaseModel instead of CustomBaseModel is intentional as OAuth
 	// requires keys to be snake_case
@@ -12,11 +10,6 @@ type TokenModel struct {
 type LoginModel struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
-}
-
-type NotePostModel struct {
-	Title   string `json:"title"`
-	Content string `json:"content"`
 }
 
 type NoteResponseModel struct {
@@ -44,5 +37,5 @@ type SearchResultModel struct {
 }
 
 type ConfigModel struct {
-	AuthType config.AuthType `json:"authType"`
+	AuthType string `json:"authType"`
 }
