@@ -78,6 +78,8 @@ func stripExt(filename string) string {
 type App struct {
 	Dir   string
 	Index *fts.Index[NoteDocument]
+	// all Notes
+	Notes map[string]NoteDocument
 }
 
 func New(dir string) (App, error) {
@@ -90,6 +92,7 @@ func New(dir string) (App, error) {
 	res := App{
 		Dir:   dir,
 		Index: fts.NewIndex[NoteDocument](),
+		Notes: map[string]NoteDocument{},
 	}
 
 	// for now loaded from fs on startup
@@ -128,7 +131,7 @@ func (app *App) newSearchResult(hit fts.Hit) (SearchResult, error) {
 		// 	titleHighlights += strings.Join(field, "\n")
 		// case "Content":
 		//	contentHighlights += strings.Join(field, "\n")
-		contentHighlights += re.ReplaceAllStringFunc(app.Index.Documents[hit.ID].Content, func(s string) string {
+		contentHighlights += re.ReplaceAllStringFunc(app.Notes[hit.ID].Content, func(s string) string {
 			return "<mark>" + s + "</mark>"
 		})
 		// case "Tags":
@@ -201,7 +204,7 @@ func (app *App) getNotes() ([]Note, error) {
 func (app *App) updateIndex() error {
 	indexed := set.New[string](0)
 	docs := []NoteDocument{}
-	for id, doc := range app.Index.Documents {
+	for id, doc := range app.Notes {
 		idxFilename := id + _markdownExt
 		idxFilepath := filepath.Join(app.Dir, idxFilename)
 		if _, err := os.Stat(idxFilepath); os.IsNotExist(err) {
@@ -264,7 +267,7 @@ func (app *App) GetTags() (set.Set[string], error) {
 	}
 
 	res := set.New[string](0)
-	for _, note := range app.Index.Documents {
+	for _, note := range app.Notes {
 		res.Merge(note.Tags)
 	}
 	return res, nil
@@ -303,7 +306,7 @@ func (app *App) Search(
 	var hits []fts.Hit
 	// Parse Query
 	if phrase == "*" {
-		hits = fun.MapToSlice(app.Index.Documents, func(_ string, doc NoteDocument) fts.Hit {
+		hits = fun.MapToSlice(app.Notes, func(_ string, doc NoteDocument) fts.Hit {
 			return fts.Hit{
 				ID:    doc.ID(),
 				Score: 0,
@@ -338,7 +341,7 @@ func (app *App) Search(
 			return cmp.Compare(j.Score, i.Score)
 		}
 
-		return cmp.Compare(app.Index.Documents[j.ID].Modtime.Unix(), app.Index.Documents[i.ID].Modtime.Unix())
+		return cmp.Compare(app.Notes[j.ID].Modtime.Unix(), app.Notes[i.ID].Modtime.Unix())
 	})
 
 	if limit > 0 {

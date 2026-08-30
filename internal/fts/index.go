@@ -22,8 +22,6 @@ type Index[D Document] struct {
 	mu sync.RWMutex
 	// Field -> Term -> Document ID -> Term count in document field
 	InvIndex map[string]map[string]map[string]int
-	// all Documents
-	Documents map[string]D
 	// Field -> Term -> Term frequency among all documents field
 	TermFreq map[string]map[string]int
 }
@@ -42,10 +40,9 @@ func NewIndex[D Document]() *Index[D] {
 	}
 
 	return &Index[D]{
-		mu:        sync.RWMutex{},
-		InvIndex:  InvIndex,
-		Documents: map[string]D{},
-		TermFreq:  TermFreq,
+		mu:       sync.RWMutex{},
+		InvIndex: InvIndex,
+		TermFreq: TermFreq,
 	}
 }
 
@@ -73,7 +70,6 @@ func (idx *Index[D]) Add(docs ...D) {
 				idx.add(fieldName, term, doc.ID(), 1)
 			}
 		}
-		idx.Documents[doc.ID()] = doc
 	}
 }
 
@@ -81,13 +77,12 @@ func (idx *Index[D]) Delete(id string) {
 	idx.mu.Lock()
 	defer idx.mu.Unlock()
 
-	for field := range idx.Documents[id].Fields() {
-		for term, docs := range idx.InvIndex[field] {
+	for field, index := range idx.InvIndex {
+		for term, docs := range index {
 			idx.TermFreq[field][term] -= docs[id]
 			delete(docs, id)
 		}
 	}
-	delete(idx.Documents, id)
 }
 
 type Hit struct {
@@ -106,10 +101,7 @@ func (idx *Index[D]) Search(query string, tags []string) []Hit {
 	docTags := map[string][]string{}
 
 	queryTokens := analyze(query).Slice()
-	for fieldName, field := range func() D {
-		var d D
-		return d
-	}().Fields() {
+	for fieldName, field := range fun.Zero[D]().Fields() {
 		for _, token := range queryTokens {
 			for docID, cnt := range idx.InvIndex[fieldName][token.Term] {
 				if idx.TermFreq[fieldName][token.Term] == 0 {
