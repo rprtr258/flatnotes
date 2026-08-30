@@ -1,5 +1,7 @@
 package internal
 
+import "github.com/rprtr258/flatnotes/internal/config"
+
 type Optional[T any] struct {
 	Value T
 	Valid bool
@@ -54,5 +56,5 @@ type SearchResultModel struct {
 }
 
 type ConfigModel struct {
-	AuthType AuthType `json:"authType"`
+	AuthType config.AuthType `json:"authType"`
 }

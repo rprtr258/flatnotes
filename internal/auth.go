@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/rprtr258/flatnotes/internal/config"
 )
 
 const JWT_ALGORITHM = "HS256"
@@ -16,16 +17,16 @@ type claims struct {
 	jwt.RegisteredClaims
 }
 
-func CreateAccessToken(config Config, username string) (string, error) {
+func CreateAccessToken(config config.Config, username string) (string, error) {
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   username,
-			ExpiresAt: jwt.NewNumericDate(time.Now().AddDate(0, 0, config.SessionExpiryDays)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(config.SessionExpiry)),
 		},
 	}).SignedString([]byte(config.SessionKey)) //(to_encode, config.session_key, JWT_ALGORITHM)
 }
 
-func ValidateToken(config Config, token string /*= Depends(oauth2_scheme)*/) error {
+func ValidateToken(config config.Config, token string /*= Depends(oauth2_scheme)*/) error {
 	// try:
 	var claims claims
 	_, err := jwt.ParseWithClaims(token, &claims, func(t *jwt.Token) (any, error) {
@@ -53,26 +54,26 @@ func ValidateToken(config Config, token string /*= Depends(oauth2_scheme)*/) err
 	//     )
 }
 
-func Authenticate(config Config, data LoginModel, last_used_totp *string) (TokenModel, error) {
-	expected_password := config.Password
+func Authenticate(cfg config.Config, data LoginModel, last_used_totp *string) (TokenModel, error) {
+	expected_password := cfg.Password
 	var current_totp string
-	if config.AuthType == AuthTypeTOTP {
+	if cfg.AuthType == config.AuthTypeTOTP {
 		current_totp = "" // totp.now()
 		// expected_password += current_totp
 	}
 
-	if config.Username != data.Username || expected_password != data.Password ||
+	if cfg.Username != data.Username || expected_password != data.Password ||
 		// Prevent TOTP from being reused
-		config.AuthType == AuthTypeTOTP && *last_used_totp != "" && current_totp == *last_used_totp {
+		cfg.AuthType == config.AuthTypeTOTP && *last_used_totp != "" && current_totp == *last_used_totp {
 		return TokenModel{}, fmt.Errorf("Incorrect login credentials.")
 	}
 
-	access_token, err := CreateAccessToken(config, config.Username)
+	access_token, err := CreateAccessToken(cfg, cfg.Username)
 	if err != nil {
 		return TokenModel{}, fmt.Errorf("create access token: %s", err.Error())
 	}
 
-	if config.AuthType == AuthTypeTOTP {
+	if cfg.AuthType == config.AuthTypeTOTP {
 		*last_used_totp = current_totp
 	}
 	return TokenModel{
