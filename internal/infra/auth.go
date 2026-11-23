@@ -11,7 +11,7 @@ import (
 	"github.com/rprtr258/flatnotes/internal/config"
 )
 
-const JWT_ALGORITHM = "HS256"
+// const JWT_ALGORITHM = "HS256"
 
 // var oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/token")
 
@@ -67,7 +67,7 @@ func Authenticate(cfg config.Config, data internal.LoginModel, lastUsedTOTP *str
 	if cfg.Username != data.Username || expectedPassword != data.Password ||
 		// Prevent TOTP from being reused
 		cfg.AuthType == config.AuthTypeTOTP && *lastUsedTOTP != "" && currentTOTP == *lastUsedTOTP {
-		return internal.TokenModel{}, fmt.Errorf("Incorrect login credentials.")
+		return internal.TokenModel{}, fmt.Errorf("incorrect login credentials")
 	}
 
 	accessToken, err := CreateAccessToken(cfg, cfg.Username)

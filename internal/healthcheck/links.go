@@ -11,13 +11,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rprtr258/flatnotes/internal"
 	"github.com/rprtr258/fun"
 	"github.com/rprtr258/fun/iter"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	gmext "github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/text"
+
+	"github.com/rprtr258/flatnotes/internal"
 )
 
 // md is a reusable goldmark parser with the Linkify extension enabled,
@@ -117,7 +118,10 @@ func inlineText(n ast.Node, src []byte) string {
 // classifying each as relative or absolute. Relative links are printed
 // as-is; absolute (remote) links are fetched and only the unavailable
 // ones are reported.
-func checkNoteLinks(notes map[string]internal.NoteDocument, dir string) iter.Seq[diagnostic] {
+func checkNoteLinks(
+	notes map[string]internal.NoteDocument,
+	dir string,
+) iter.Seq[diagnostic] {
 	var links []noteLink
 	for title, doc := range notes {
 		for link := range collectLinks(doc.Content, title) {
@@ -142,7 +146,7 @@ func checkNoteLinks(notes map[string]internal.NoteDocument, dir string) iter.Seq
 
 	return iter.Concat(
 		checkRelativeLinks(dir, relativeLinks),
-		// checkRemoteLinks(absoluteLinks),
+		checkRemoteLinks(absoluteLinks),
 	)
 }
 
@@ -221,7 +225,7 @@ const (
 
 // checkRemoteLinks probes each link concurrently with workers and
 // prints the unavailable ones (status >= 400 or request error).
-func checkRemoteLinks(links []noteLink) {
+func checkRemoteLinks(links []noteLink) iter.Seq[diagnostic] {
 	fmt.Printf("=== remote link availability (%d) ===\n", len(links))
 	codes := make([]int, len(links))
 	var wg sync.WaitGroup
@@ -232,8 +236,8 @@ func checkRemoteLinks(links []noteLink) {
 		go func() {
 			defer wg.Done()
 			for i := range jobs {
-				codes[i] = isAvailable(links[i].url)
 				progress.Lock()
+				codes[i] = isAvailable(links[i].url)
 				progress.Unlock()
 			}
 		}()
@@ -244,15 +248,23 @@ func checkRemoteLinks(links []noteLink) {
 	close(jobs)
 	wg.Wait()
 
-	unavailable := 0
-	for i, l := range links {
-		if codes[i] < 400 {
-			continue
+	return func(yield func(diagnostic) bool) {
+		unavailable := 0
+		for i, l := range links {
+			if codes[i] < 400 {
+				continue
+			}
+			unavailable++
+			if !yield(diagnostic{
+				note:       l.note,
+				text:       l.url,
+				group:      "unavailable",
+				diagnostic: fmt.Sprintf("%d", codes[i]),
+			}) {
+				return
+			}
 		}
-		unavailable++
-		fmt.Printf("[unavailable] %s: %q -> %d\n", l.note, l.url, codes[i])
 	}
-	fmt.Printf("%d unavailable / %d remote links\n", unavailable, len(links))
 }
 
 func isAvailable(url string) int {

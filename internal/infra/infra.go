@@ -91,7 +91,7 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 	// totp = (
 	//     pyotp.TOTP(config.totp_key) if config.auth_type == AuthType.TOTP else None
 	// )
-	last_used_totp := ""
+	lastUsedTotp := ""
 
 	// Display TOTP QR code
 	// if config.auth_type == internal.AuthTypeTOTP{
@@ -158,7 +158,7 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 						return fiber.NewError(fiber.StatusBadRequest, err.Error())
 					}
 
-					res, err := Authenticate(cfg, data, &last_used_totp)
+					res, err := Authenticate(cfg, data, &lastUsedTotp)
 					if err != nil {
 						return fiber.NewError(fiber.StatusUnauthorized, err.Error())
 					}
@@ -200,12 +200,12 @@ func setupApp(fapp *fiber.App, cfg config.Config, app internal.App) {
 			}
 			title = strings.TrimSpace(title)
 
-			var new_data internal.NotePatchModel
-			if err := c.BodyParser(&new_data); err != nil {
+			var newData internal.NotePatchModel
+			if err := c.BodyParser(&newData); err != nil {
 				return fiber.NewError(fiber.StatusBadRequest, err.Error())
 			}
 
-			res, err := app.UpdateNote(title, new_data)
+			res, err := app.UpdateNote(title, newData)
 			if err != nil {
 				// except InvalidTitleError:
 				//     return invalid_title_response
