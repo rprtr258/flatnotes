@@ -124,7 +124,7 @@ watch(
 </template>
 
 <style lang="scss" scoped>
-@import "../colours";
+@use "../colours";
 
 .open-modal {
   display: flex;

@@ -75,7 +75,7 @@ onUnmounted(() => {
 </template>
 
 <style lang="scss" scoped>
-@import "../colours";
+@use "../colours";
 
 @keyframes highlight {
   from {

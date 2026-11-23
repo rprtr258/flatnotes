@@ -107,7 +107,7 @@ function onBackdrop(): void {
 </template>
 
 <style lang="scss" scoped>
-@import "../colours";
+@use "../colours";
 
 .fn-modal-backdrop {
   position: fixed;

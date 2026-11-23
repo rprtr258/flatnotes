@@ -34,7 +34,7 @@ withDefaults(
 </template>
 
 <style lang="scss" scoped>
-@import "../colours";
+@use "../colours";
 
 p {
   color: var(--colour-text);

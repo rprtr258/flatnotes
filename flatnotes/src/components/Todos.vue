@@ -125,7 +125,7 @@ onMounted(load);
 </template>
 
 <style lang="scss" scoped>
-@import "../colours";
+@use "../colours";
 
 .page-title {
   color: var(--colour-text);

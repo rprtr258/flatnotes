@@ -125,7 +125,7 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
-@import "../colours";
+@use "../colours";
 
 .mini-header {
   font-size: 12px;

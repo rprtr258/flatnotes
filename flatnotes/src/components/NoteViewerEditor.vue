@@ -318,7 +318,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style lang="scss" scoped>
-@import "../colours";
+@use "../colours";
 
 .title-input {
   border: none;

@@ -247,7 +247,7 @@ onMounted(init);
 </template>
 
 <style lang="scss" scoped>
-@import "../colours";
+@use "../colours";
 
 .sort-select {
   padding-inline: 6px;
@@ -280,7 +280,7 @@ onMounted(init);
 </style>
 
 <style lang="scss">
-@import "../colours";
+@use "../colours";
 
 .match {
   font-weight: bold;

@@ -19,7 +19,7 @@ import { toasts, removeToast } from "../composables/useToast";
 </template>
 
 <style lang="scss" scoped>
-@import "../colours";
+@use "../colours";
 
 .fn-toast-host {
   position: fixed;

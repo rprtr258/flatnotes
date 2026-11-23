@@ -173,7 +173,7 @@ onMounted(getNotes);
 </template>
 
 <style lang="scss" scoped>
-@import "../colours";
+@use "../colours";
 
 .tree-explorer {
   min-height: 0;

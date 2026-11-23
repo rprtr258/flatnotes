@@ -269,7 +269,7 @@ onUnmounted(() => {
 </template>
 
 <style lang="scss" scoped>
-@import "../colours";
+@use "../colours";
 
 .main-layout {
   min-height: 0;
