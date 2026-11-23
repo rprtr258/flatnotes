@@ -292,7 +292,7 @@ func (app *App) GetTags() ([]string, error) {
 
 	res := map[string]int{}
 	for _, note := range app.Notes {
-		for tag := range note.Tags.Iter() {
+		for tag := range note.Tags.All {
 			res[tag]++
 		}
 	}
