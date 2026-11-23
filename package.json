@@ -37,7 +37,7 @@
     "@vitejs/plugin-vue": "5.0.4",
     "sass": "1.77.1",
     "typescript": "5.4.5",
-    "vite": "5.2.11",
+    "vite": "6.4.3",
     "vue-tsc": "2.0.16"
   },
   "htmlnano": {
